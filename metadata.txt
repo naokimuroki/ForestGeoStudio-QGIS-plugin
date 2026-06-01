@@ -1,0 +1,17 @@
+[general]
+name=ForestGeo Studio
+qgisMinimumVersion=3.44
+qgisMaximumVersion=3.44
+description=QGISプロジェクトをMapLibreGLJSのWEB地図コードとして出力
+about=ForestGeo Studioは、QGISで表示中のレイヤをMapLibre GL JSのhtmlコードとして出力し、WEB-GIS制作をサポートするプラグインです。マップタイルの表示はもちろんのこと、ローカルのベクタデータについても、プラグイン側でflatgeobufに変換し、htmlとセットで出力しますので、それをhtmlと同階層に配置すれば表示可能となります。ただし、ローカルのラスタデータ(tiff)には対応していません。なお、有償ライセンスコードをお持ちの方は、①標高タイルから微地形表現図を描写するオプション、②路網作設や架線集材の設計シミュレーションなど森林に特化した機能が利用できます。詳しくは、forestgeo.infoのホームページをお訪ねください。
+version=1.0.0
+author=Forestgeo.info, Naoki Muroki
+email=naoki.muroki.84@forestgeo.info
+homepage=https://forestgeo.info/
+tracker=https://forestgeo.info/
+repository=https://github.com/naokimuroki
+category=Web
+icon=icon.png
+tags=web, MapLibre GL JS, flatgeobuf, maptiles, forestry
+experimental=True
+deprecated=False

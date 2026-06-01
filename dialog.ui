@@ -1,0 +1,2086 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ForestGeoStudioDialog</class>
+ <widget class="QDialog" name="ForestGeoStudioDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1150</width>
+    <height>650</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>ForestGeo Studio</string>
+  </property>
+  <property name="minimumWidth">
+   <number>760</number>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+/* =========================================================
+   ForestGeo Studio Theme
+   palette:
+     deep   #43A28C   mid    #6ABC6E   light  #BEDFC2
+     cream  #FFFDF6   yellow #FFFCDA
+     text   #1e3a2f   sub    #4a7c65
+
+   ※ QCheckBox / QSpinBox / QDoubleSpinBox は
+     ネイティブのチェックマーク・▲▼を残すため
+     indicator・arrow部分はカスタムしません。
+   ========================================================= */
+
+/* ---- Font (全体に Noto Sans JP を適用) ---- */
+* {
+    font-family: "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
+}
+
+/* ---- Base ---- */
+QDialog {
+    background-color: #FFFDF6;
+    color: #1e3a2f;
+}
+QWidget {
+    color: #1e3a2f;
+}
+QLabel {
+    background: transparent;
+    color: #1e3a2f;
+}
+
+/* ---- Inputs ---- */
+QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background-color: #FFFFFF;
+    color: #1e3a2f;
+    border: 1px solid #BEDFC2;
+    border-radius: 4px;
+    padding: 3px 6px;
+    selection-background-color: #6ABC6E;
+    selection-color: #FFFDF6;
+}
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border: 1px solid #43A28C;
+}
+QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {
+    background-color: #FFFCDA;
+    color: #4a7c65;
+}
+
+/* ComboBox dropdown menu */
+QComboBox QAbstractItemView {
+    background-color: #FFFFFF;
+    color: #1e3a2f;
+    selection-background-color: #6ABC6E;
+    selection-color: #FFFDF6;
+    border: 1px solid #BEDFC2;
+    outline: 0;
+}
+
+/* ---- Buttons (default = mid) ---- */
+QPushButton {
+    background-color: #6ABC6E;
+    color: #FFFDF6;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background-color: #43A28C;
+}
+QPushButton:pressed {
+    background-color: #1e3a2f;
+}
+QPushButton:disabled {
+    background-color: #BEDFC2;
+    color: #4a7c65;
+}
+
+/* Color picker buttons + browse + row add/remove (light, subtle) */
+QPushButton#btnPointColor,
+QPushButton#btnPointStroke,
+QPushButton#btnLineColor,
+QPushButton#btnFillColor,
+QPushButton#btnOutlineColor,
+QPushButton#btnLabelColor,
+QPushButton#btnLabelHaloColor,
+QPushButton#btnVtFillColor,
+QPushButton#btnVtOutlineColor,
+QPushButton#btnVtLineColor,
+QPushButton#btnVtPointColor,
+QPushButton#btnVtPointStroke,
+QPushButton#btnVtLabelColor,
+QPushButton#btnVtLabelHaloColor,
+QPushButton#btnBrowse,
+QPushButton#btnVtAddRule,
+QPushButton#btnVtRemoveRule {
+    background-color: #BEDFC2;
+    color: #1e3a2f;
+    padding: 4px 10px;
+    font-weight: normal;
+}
+QPushButton#btnPointColor:hover,
+QPushButton#btnPointStroke:hover,
+QPushButton#btnLineColor:hover,
+QPushButton#btnFillColor:hover,
+QPushButton#btnOutlineColor:hover,
+QPushButton#btnLabelColor:hover,
+QPushButton#btnLabelHaloColor:hover,
+QPushButton#btnVtFillColor:hover,
+QPushButton#btnVtOutlineColor:hover,
+QPushButton#btnVtLineColor:hover,
+QPushButton#btnVtPointColor:hover,
+QPushButton#btnVtPointStroke:hover,
+QPushButton#btnVtLabelColor:hover,
+QPushButton#btnVtLabelHaloColor:hover,
+QPushButton#btnBrowse:hover,
+QPushButton#btnVtAddRule:hover,
+QPushButton#btnVtRemoveRule:hover {
+    background-color: #6ABC6E;
+    color: #FFFDF6;
+}
+
+/* Apply style button (secondary mid - already default) */
+QPushButton#btnApplyStyle,
+QPushButton#btnSaveStyle,
+QPushButton#btnLoadStyle {
+    padding: 7px 18px;
+}
+
+/* Primary action button (HTML output) */
+QPushButton#btnRun {
+    background-color: #43A28C;
+    color: #FFFDF6;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 10px 24px;
+    border-radius: 6px;
+}
+QPushButton#btnRun:hover {
+    background-color: #1e3a2f;
+}
+
+/* ---- GroupBox (outer = yellow tint) ---- */
+QGroupBox {
+    background-color: #FFFCDA;
+    border: 1px solid #BEDFC2;
+    border-radius: 6px;
+    margin-top: 14px;
+    padding: 14px 10px 10px 10px;
+    font-weight: bold;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 12px;
+    padding: 0 8px;
+    color: #43A28C;
+    background-color: #FFFDF6;
+}
+
+/* Nested GroupBox (inner = cream) */
+QGroupBox#groupLayerStyle {
+    background-color: #FFFDF6;
+    border: 1px solid #BEDFC2;
+}
+QGroupBox#groupLayerStyle::title {
+    color: #4a7c65;
+    background-color: #FFFCDA;
+}
+
+/* ---- TableWidget ---- */
+QTableWidget {
+    background-color: #FFFFFF;
+    color: #1e3a2f;
+    border: 1px solid #BEDFC2;
+    border-radius: 4px;
+    alternate-background-color: #FFFCDA;
+    gridline-color: #BEDFC2;
+    outline: 0;
+}
+QTableWidget::item {
+    padding: 4px;
+}
+QTableWidget::item:selected {
+    background-color: #6ABC6E;
+    color: #FFFDF6;
+}
+QTableWidget::item:hover {
+    background-color: #BEDFC2;
+}
+
+/* Table headers */
+QHeaderView::section {
+    background-color: #43A28C;
+    color: #FFFDF6;
+    padding: 5px 8px;
+    border: none;
+    border-right: 1px solid #6ABC6E;
+    font-weight: bold;
+}
+QTableCornerButton::section {
+    background-color: #43A28C;
+    border: none;
+}
+
+/* ---- CheckBox (背景と区別できるよう白いピル状ボックス / ネイティブのチェックマーク保持) ---- */
+QCheckBox {
+    color: #1e3a2f;
+    spacing: 8px;
+    background-color: #FFFFFF;
+    border: 1px solid #BEDFC2;
+    border-radius: 4px;
+    padding: 4px 10px;
+}
+QCheckBox:hover {
+    border: 1px solid #6ABC6E;
+}
+QCheckBox:checked {
+    background-color: #BEDFC2;
+    border-color: #43A28C;
+}
+QCheckBox:disabled {
+    background-color: #FFFCDA;
+    color: #4a7c65;
+    border-color: #BEDFC2;
+}
+
+/* ---- ScrollArea (背景透過、枠なし) ---- */
+QScrollArea {
+    background: transparent;
+    border: none;
+}
+QScrollArea > QWidget > QWidget {
+    background: transparent;
+}
+
+/* ---- ScrollBar ---- */
+QScrollBar:vertical {
+    background: #FFFDF6;
+    width: 10px;
+    margin: 0;
+    border: none;
+}
+QScrollBar::handle:vertical {
+    background: #BEDFC2;
+    border-radius: 5px;
+    min-height: 24px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #6ABC6E;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+    background: none;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+QScrollBar:horizontal {
+    background: #FFFDF6;
+    height: 10px;
+    margin: 0;
+    border: none;
+}
+QScrollBar::handle:horizontal {
+    background: #BEDFC2;
+    border-radius: 5px;
+    min-width: 24px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #6ABC6E;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0;
+    background: none;
+}
+   </string>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <item>
+    <widget class="QScrollArea" name="scrollArea">
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::NoFrame</enum>
+     </property>
+     <widget class="QWidget" name="scrollContents">
+      <layout class="QVBoxLayout" name="scrollLayout">
+   <item>
+    <widget class="QGroupBox" name="groupBasic">
+     <property name="title">
+      <string>基本設定</string>
+     </property>
+     <layout class="QFormLayout" name="formBasic">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblTitle">
+        <property name="text">
+         <string>WEB-GISタイトル表示</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="txtTitle">
+        <property name="placeholderText">
+         <string>タイトルを入力</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblSource">
+        <property name="text">
+         <string>出典</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="txtSource">
+        <property name="placeholderText">
+         <string>林野庁、国土地理院など</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="lblTheme">
+        <property name="text">
+         <string>WEB画面テーマカラー</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="cmbTheme">
+        <property name="minimumWidth">
+         <number>120</number>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBasemap">
+     <property name="title">
+      <string>ベースマップ</string>
+     </property>
+     <layout class="QVBoxLayout" name="layoutBasemap">
+      <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRow1">
+        <item>
+         <widget class="QLabel" name="lblBasemap">
+          <property name="text">
+           <string>種類</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="cmbBasemap">
+          <property name="minimumSize">
+           <size>
+            <width>200</width>
+            <height>0</height>
+           </size>
+          </property>
+          <item>
+           <property name="text">
+            <string>なし（QGISレイヤのみ）</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>国土地理院・標準地図</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>国土地理院・全国最新写真</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>国土地理院・淡色地図</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>OpenStreetMap</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerBasemap">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRow1b">
+        <item>
+         <widget class="QLabel" name="lblBasemap2">
+          <property name="text">
+           <string>種類2（任意・上に重ねる）</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="cmbBasemap2">
+          <property name="minimumSize">
+           <size>
+            <width>200</width>
+            <height>0</height>
+           </size>
+          </property>
+          <item>
+           <property name="text">
+            <string>なし（QGISレイヤのみ）</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>国土地理院・標準地図</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>国土地理院・全国最新写真</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>国土地理院・淡色地図</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>OpenStreetMap</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkBasemap2Vis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="toolTip">
+           <string>種類2のベースマップの初期表示状態。チェックを外すと、出力後の地図では非表示の状態で開始します（レイヤパネルで切り替え可能）。</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerBasemap2">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRow2">
+        <item>
+         <widget class="QCheckBox" name="chkCsmap">
+          <property name="text">
+           <string>国土地理院・標高タイルからCS立体図を描写/※OPT1必要</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkCsmapVis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerCsmap">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRow3">
+        <item>
+         <widget class="QCheckBox" name="chkInyouzu">
+          <property name="text">
+           <string>国土地理院・標高タイルから陰陽図（エアロトヨタ社考案）を描写/※同上</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkInyouzuVis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerInyouzu">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRow4">
+        <item>
+         <widget class="QCheckBox" name="chkMpiRrim">
+          <property name="text">
+           <string>国土地理院・標高タイルからMPI赤色立体地図（アジア航測ら考案）を描写/※同上</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkMpiRrimVis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerMpiRrim">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRow5">
+        <item>
+         <widget class="QCheckBox" name="chkCimap">
+          <property name="text">
+           <string>国土地理院・標高タイルからCIマップ（中央開発考案）を描写/※同上</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkCimapVis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerCimap">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRow6">
+        <item>
+         <widget class="QCheckBox" name="chkColorrelief">
+          <property name="text">
+           <string>国土地理院・標高タイルから段彩陰影図を描写/※同上</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkColorreliefVis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerColorrelief">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRowTwi">
+        <item>
+         <widget class="QCheckBox" name="chkTwi">
+          <property name="text">
+           <string>国土地理院・標高タイルからTWI（地形湿潤指数）入り傾斜量図を描写/※同上</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkTwiVis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerTwi">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRowTopex">
+        <item>
+         <widget class="QCheckBox" name="chkTopex">
+          <property name="text">
+           <string>国土地理院・標高タイルからTOPEX（風向別の地形露出指数）を描写／※同上</string>
+          </property>
+          <property name="checked"><bool>false</bool></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkTopexVis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerTopex">
+          <property name="orientation"><enum>Qt::Horizontal</enum></property>
+          <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRow7">
+        <item>
+         <widget class="QCheckBox" name="chkWeather">
+          <property name="text">
+           <string>気象庁ナウキャスト（降水量）/Open-Meteo（風向・風速）をアニメーション表示/※同上</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkWeatherVis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerWeather">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupLayer">
+     <property name="title">
+      <string>レイヤ選択・スタイル設定</string>
+     </property>
+     <layout class="QVBoxLayout" name="layoutLayer">
+      <item>
+       <widget class="QTableWidget" name="layerTable">
+        <property name="minimumSize">
+         <size>
+          <width>900</width>
+          <height>180</height>
+         </size>
+        </property>
+        <property name="selectionBehavior">
+         <enum>QAbstractItemView::SelectRows</enum>
+        </property>
+        <property name="editTriggers">
+         <set>QAbstractItemView::NoEditTriggers</set>
+        </property>
+        <column>
+         <property name="text">
+          <string>出力</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>表示</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>レイヤ名</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>種類</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>ソース</string>
+         </property>
+        </column>
+       </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="groupLayerStyle">
+        <property name="title">
+         <string>選択レイヤのスタイル設定</string>
+        </property>
+        <layout class="QVBoxLayout" name="layoutLayerStyle">
+         <item>
+          <widget class="QWidget" name="widgetPoint">
+           <layout class="QHBoxLayout" name="layoutPoint">
+            <item>
+             <widget class="QLabel" name="lblPointColor">
+              <property name="text">
+               <string>ポイント色:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="txtPointColor">
+              <property name="text">
+               <string>#e63946</string>
+              </property>
+              <property name="maximumWidth">
+               <number>90</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnPointColor">
+              <property name="text">
+               <string>選択</string>
+              </property>
+              <property name="maximumWidth">
+               <number>52</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblPointSize">
+              <property name="text">
+               <string>サイズ:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spinPointSize">
+              <property name="minimum">
+               <number>2</number>
+              </property>
+              <property name="maximum">
+               <number>30</number>
+              </property>
+              <property name="value">
+               <number>8</number>
+              </property>
+              <property name="maximumWidth">
+               <number>70</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblPointStroke">
+              <property name="text">
+               <string>枠線色:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="txtPointStroke">
+              <property name="text">
+               <string>#ffffff</string>
+              </property>
+              <property name="maximumWidth">
+               <number>90</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnPointStroke">
+              <property name="text">
+               <string>選択</string>
+              </property>
+              <property name="maximumWidth">
+               <number>52</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblPointZoom">
+              <property name="text"><string>表示ズーム:</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinPointMinZoom">
+              <property name="minimum"><double>0.0</double></property>
+              <property name="maximum"><double>24.0</double></property>
+              <property name="value"><double>0.0</double></property>
+              <property name="maximumWidth"><number>70</number></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblPointZoomTo">
+              <property name="text"><string>～</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinPointMaxZoom">
+              <property name="minimum"><double>0.0</double></property>
+              <property name="maximum"><double>24.0</double></property>
+              <property name="value"><double>24.0</double></property>
+              <property name="maximumWidth"><number>70</number></property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="spacerPoint">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QWidget" name="widgetLine">
+           <layout class="QHBoxLayout" name="layoutLine">
+            <item>
+             <widget class="QLabel" name="lblLineColor">
+              <property name="text">
+               <string>ライン色:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="txtLineColor">
+              <property name="text">
+               <string>#1d6fa4</string>
+              </property>
+              <property name="maximumWidth">
+               <number>90</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnLineColor">
+              <property name="text">
+               <string>選択</string>
+              </property>
+              <property name="maximumWidth">
+               <number>52</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblLineWidth">
+              <property name="text">
+               <string>太さ:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinLineWidth">
+              <property name="minimum">
+               <double>0.500000000000000</double>
+              </property>
+              <property name="maximum">
+               <double>20.000000000000000</double>
+              </property>
+              <property name="singleStep">
+               <double>0.500000000000000</double>
+              </property>
+              <property name="value">
+               <double>2.000000000000000</double>
+              </property>
+              <property name="maximumWidth">
+               <number>80</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblLineOpacity">
+              <property name="text">
+               <string>不透明度:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinLineOpacity">
+              <property name="minimum">
+               <double>0.000000000000000</double>
+              </property>
+              <property name="maximum">
+               <double>1.000000000000000</double>
+              </property>
+              <property name="singleStep">
+               <double>0.100000000000000</double>
+              </property>
+              <property name="value">
+               <double>1.000000000000000</double>
+              </property>
+              <property name="maximumWidth">
+               <number>80</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblLineZoom">
+              <property name="text"><string>表示ズーム:</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinLineMinZoom">
+              <property name="minimum"><double>0.0</double></property>
+              <property name="maximum"><double>24.0</double></property>
+              <property name="value"><double>0.0</double></property>
+              <property name="maximumWidth"><number>70</number></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblLineZoomTo">
+              <property name="text"><string>～</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinLineMaxZoom">
+              <property name="minimum"><double>0.0</double></property>
+              <property name="maximum"><double>24.0</double></property>
+              <property name="value"><double>24.0</double></property>
+              <property name="maximumWidth"><number>70</number></property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="spacerLine">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QWidget" name="widgetPolygon">
+           <layout class="QHBoxLayout" name="layoutPolygon">
+            <item>
+             <widget class="QLabel" name="lblFillColor">
+              <property name="text">
+               <string>塗り色:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="txtFillColor">
+              <property name="text">
+               <string>#2d8a4e</string>
+              </property>
+              <property name="maximumWidth">
+               <number>90</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnFillColor">
+              <property name="text">
+               <string>選択</string>
+              </property>
+              <property name="maximumWidth">
+               <number>52</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblFillOpacity">
+              <property name="text">
+               <string>不透明度:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinFillOpacity">
+              <property name="minimum">
+               <double>0.000000000000000</double>
+              </property>
+              <property name="maximum">
+               <double>1.000000000000000</double>
+              </property>
+              <property name="singleStep">
+               <double>0.100000000000000</double>
+              </property>
+              <property name="value">
+               <double>0.500000000000000</double>
+              </property>
+              <property name="maximumWidth">
+               <number>80</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblOutlineColor">
+              <property name="text">
+               <string>枠線色:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="txtOutlineColor">
+              <property name="text">
+               <string>#ffffff</string>
+              </property>
+              <property name="maximumWidth">
+               <number>90</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnOutlineColor">
+              <property name="text">
+               <string>選択</string>
+              </property>
+              <property name="maximumWidth">
+               <number>52</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblOutlineOpacity">
+              <property name="text">
+               <string>枠線不透明度:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinOutlineOpacity">
+              <property name="minimum"><double>0.000000000000000</double></property>
+              <property name="maximum"><double>1.000000000000000</double></property>
+              <property name="singleStep"><double>0.100000000000000</double></property>
+              <property name="value"><double>1.000000000000000</double></property>
+              <property name="maximumWidth"><number>80</number></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblPolygonZoom">
+              <property name="text"><string>表示ズーム:</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinPolygonMinZoom">
+              <property name="minimum"><double>0.0</double></property>
+              <property name="maximum"><double>24.0</double></property>
+              <property name="value"><double>0.0</double></property>
+              <property name="maximumWidth"><number>70</number></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblPolygonZoomTo">
+              <property name="text"><string>～</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinPolygonMaxZoom">
+              <property name="minimum"><double>0.0</double></property>
+              <property name="maximum"><double>24.0</double></property>
+              <property name="value"><double>24.0</double></property>
+              <property name="maximumWidth"><number>70</number></property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="spacerPolygon">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QWidget" name="widgetLabel">
+           <layout class="QVBoxLayout" name="layoutLabel">
+            <item>
+             <layout class="QHBoxLayout" name="layoutLabelRow1">
+              <item><widget class="QCheckBox" name="chkLabelEnabled"><property name="text"><string>属性ラベル表示</string></property></widget></item>
+              <item><widget class="QLabel" name="lblLabelField"><property name="text"><string>属性フィールド:</string></property></widget></item>
+              <item><widget class="QComboBox" name="cmbLabelField"><property name="minimumWidth"><number>140</number></property></widget></item>
+              <item><widget class="QLabel" name="lblLabelSize"><property name="text"><string>サイズ:</string></property></widget></item>
+              <item><widget class="QSpinBox" name="spinLabelSize"><property name="minimum"><number>6</number></property><property name="maximum"><number>48</number></property><property name="value"><number>12</number></property><property name="maximumWidth"><number>70</number></property></widget></item>
+              <item><widget class="QLabel" name="lblLabelColor"><property name="text"><string>色:</string></property></widget></item>
+              <item><widget class="QLineEdit" name="txtLabelColor"><property name="text"><string>#222222</string></property><property name="maximumWidth"><number>80</number></property></widget></item>
+              <item><widget class="QPushButton" name="btnLabelColor"><property name="text"><string>選択</string></property><property name="maximumWidth"><number>52</number></property></widget></item>
+              <item><widget class="QCheckBox" name="chkLabelHalo"><property name="text"><string>縁取り</string></property><property name="checked"><bool>true</bool></property></widget></item>
+              <item><widget class="QLineEdit" name="txtLabelHaloColor"><property name="text"><string>#ffffff</string></property><property name="maximumWidth"><number>80</number></property></widget></item>
+              <item><widget class="QPushButton" name="btnLabelHaloColor"><property name="text"><string>選択</string></property><property name="maximumWidth"><number>52</number></property></widget></item>
+              <item><widget class="QLabel" name="lblLabelHaloWidth"><property name="text"><string>縁幅:</string></property></widget></item>
+              <item><widget class="QDoubleSpinBox" name="spinLabelHaloWidth"><property name="minimum"><double>0.000000000000000</double></property><property name="maximum"><double>8.000000000000000</double></property><property name="singleStep"><double>0.500000000000000</double></property><property name="value"><double>1.500000000000000</double></property><property name="maximumWidth"><number>70</number></property></widget></item>
+              <item>
+               <spacer name="spacerLabelRow1">
+                <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="layoutLabelRow2">
+              <item><widget class="QLabel" name="lblLabelZoom"><property name="text"><string>属性ラベルの表示ズーム:</string></property></widget></item>
+              <item><widget class="QDoubleSpinBox" name="spinLabelMinZoom"><property name="minimum"><double>0.000000000000000</double></property><property name="maximum"><double>24.000000000000000</double></property><property name="value"><double>0.000000000000000</double></property><property name="maximumWidth"><number>70</number></property></widget></item>
+              <item><widget class="QLabel" name="lblLabelZoomTo"><property name="text"><string>～</string></property></widget></item>
+              <item><widget class="QDoubleSpinBox" name="spinLabelMaxZoom"><property name="minimum"><double>0.000000000000000</double></property><property name="maximum"><double>24.000000000000000</double></property><property name="value"><double>24.000000000000000</double></property><property name="maximumWidth"><number>70</number></property></widget></item>
+              <item>
+               <spacer name="spacerLabelRow2">
+                <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QWidget" name="widgetVectorTile">
+           <layout class="QVBoxLayout" name="layoutVectorTile">
+
+            <!-- Row 1: URL -->
+            <item>
+             <layout class="QHBoxLayout" name="layoutVtUrl">
+              <item>
+               <widget class="QLabel" name="lblVtUrl">
+                <property name="text"><string>タイルURL:</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="txtVtUrl">
+                <property name="placeholderText">
+                 <string>https://example.com/tiles/{z}/{x}/{y}.pbf</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+
+            <!-- Row 2: source + source-layer + geometry type -->
+            <item>
+             <layout class="QHBoxLayout" name="layoutVtSource">
+             
+               <!-- source -->
+              <item>
+               <widget class="QLabel" name="lblVtSource">
+                <property name="text"><string>ソース名:</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="txtVtSource">
+                <property name="placeholderText">
+                 <string>sources</string>
+                </property>
+                <property name="maximumWidth">
+                 <number>160</number>
+                </property>
+               </widget>
+              </item>
+
+              <!-- source-layer -->
+              <item>
+               <widget class="QLabel" name="lblVtSourceLayer">
+                <property name="text"><string>ソースレイヤ名:</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="txtVtSourceLayer">
+                <property name="placeholderText"><string>source-layer</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lblVtGeomType">
+                <property name="text"><string>ジオメトリ種別:</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QComboBox" name="cmbVtGeomType">
+                <item><property name="text"><string>Polygon（面）</string></property></item>
+                <item><property name="text"><string>LineString（線）</string></property></item>
+                <item><property name="text"><string>Point（点）</string></property></item>
+               </widget>
+              </item>
+              <item>
+               <spacer name="spacerVtSource">
+                <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+
+            <!-- Row 3: fill / line color (shown for Polygon) -->
+            <item>
+             <widget class="QWidget" name="widgetVtPolygon">
+              <layout class="QHBoxLayout" name="layoutVtPolygon">
+               <item><widget class="QLabel" name="lblVtFillColor"><property name="text"><string>塗り色:</string></property></widget></item>
+               <item><widget class="QLineEdit" name="txtVtFillColor"><property name="text"><string>#2d8a4e</string></property><property name="maximumWidth"><number>90</number></property></widget></item>
+               <item><widget class="QPushButton" name="btnVtFillColor"><property name="text"><string>選択</string></property><property name="maximumWidth"><number>52</number></property></widget></item>
+               <item><widget class="QLabel" name="lblVtFillOpacity"><property name="text"><string>不透明度:</string></property></widget></item>
+               <item>
+                <widget class="QDoubleSpinBox" name="spinVtFillOpacity">
+                 <property name="minimum"><double>0.0</double></property>
+                 <property name="maximum"><double>1.0</double></property>
+                 <property name="singleStep"><double>0.1</double></property>
+                 <property name="value"><double>0.6</double></property>
+                 <property name="maximumWidth"><number>70</number></property>
+                </widget>
+               </item>
+               <item><widget class="QLabel" name="lblVtOutlineColor"><property name="text"><string>枠線色:</string></property></widget></item>
+               <item><widget class="QLineEdit" name="txtVtOutlineColor"><property name="text"><string>#ffffff</string></property><property name="maximumWidth"><number>90</number></property></widget></item>
+               <item><widget class="QPushButton" name="btnVtOutlineColor"><property name="text"><string>選択</string></property><property name="maximumWidth"><number>52</number></property></widget></item>
+               <item><widget class="QLabel" name="lblVtOutlineWidth"><property name="text"><string>枠幅:</string></property></widget></item>
+               <item>
+                <widget class="QDoubleSpinBox" name="spinVtOutlineWidth">
+                 <property name="minimum"><double>0.0</double></property>
+                 <property name="maximum"><double>10.0</double></property>
+                 <property name="singleStep"><double>0.5</double></property>
+                 <property name="value"><double>1.0</double></property>
+                 <property name="maximumWidth"><number>70</number></property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="spacerVtPoly">
+                 <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                 <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+                </spacer>
+               </item>
+              </layout>
+             </widget>
+            </item>
+
+            <!-- Row 4: line style (shown for LineString) -->
+            <item>
+             <widget class="QWidget" name="widgetVtLine">
+              <layout class="QHBoxLayout" name="layoutVtLine">
+               <item><widget class="QLabel" name="lblVtLineColor"><property name="text"><string>ライン色:</string></property></widget></item>
+               <item><widget class="QLineEdit" name="txtVtLineColor"><property name="text"><string>#1d6fa4</string></property><property name="maximumWidth"><number>90</number></property></widget></item>
+               <item><widget class="QPushButton" name="btnVtLineColor"><property name="text"><string>選択</string></property><property name="maximumWidth"><number>52</number></property></widget></item>
+               <item><widget class="QLabel" name="lblVtLineWidth"><property name="text"><string>太さ:</string></property></widget></item>
+               <item>
+                <widget class="QDoubleSpinBox" name="spinVtLineWidth">
+                 <property name="minimum"><double>0.5</double></property>
+                 <property name="maximum"><double>20.0</double></property>
+                 <property name="singleStep"><double>0.5</double></property>
+                 <property name="value"><double>2.0</double></property>
+                 <property name="maximumWidth"><number>70</number></property>
+                </widget>
+               </item>
+               <item><widget class="QLabel" name="lblVtLineOpacity"><property name="text"><string>不透明度:</string></property></widget></item>
+               <item>
+                <widget class="QDoubleSpinBox" name="spinVtLineOpacity">
+                 <property name="minimum"><double>0.0</double></property>
+                 <property name="maximum"><double>1.0</double></property>
+                 <property name="singleStep"><double>0.1</double></property>
+                 <property name="value"><double>1.0</double></property>
+                 <property name="maximumWidth"><number>70</number></property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="spacerVtLine">
+                 <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                 <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+                </spacer>
+               </item>
+              </layout>
+             </widget>
+            </item>
+
+            <!-- Row 5: point style (shown for Point) -->
+            <item>
+             <widget class="QWidget" name="widgetVtPoint">
+              <layout class="QHBoxLayout" name="layoutVtPoint">
+               <item><widget class="QLabel" name="lblVtPointColor"><property name="text"><string>ポイント色:</string></property></widget></item>
+               <item><widget class="QLineEdit" name="txtVtPointColor"><property name="text"><string>#e63946</string></property><property name="maximumWidth"><number>90</number></property></widget></item>
+               <item><widget class="QPushButton" name="btnVtPointColor"><property name="text"><string>選択</string></property><property name="maximumWidth"><number>52</number></property></widget></item>
+               <item><widget class="QLabel" name="lblVtPointRadius"><property name="text"><string>半径:</string></property></widget></item>
+               <item>
+                <widget class="QSpinBox" name="spinVtPointRadius">
+                 <property name="minimum"><number>2</number></property>
+                 <property name="maximum"><number>30</number></property>
+                 <property name="value"><number>6</number></property>
+                 <property name="maximumWidth"><number>70</number></property>
+                </widget>
+               </item>
+               <item><widget class="QLabel" name="lblVtPointStroke"><property name="text"><string>枠線色:</string></property></widget></item>
+               <item><widget class="QLineEdit" name="txtVtPointStroke"><property name="text"><string>#ffffff</string></property><property name="maximumWidth"><number>90</number></property></widget></item>
+               <item><widget class="QPushButton" name="btnVtPointStroke"><property name="text"><string>選択</string></property><property name="maximumWidth"><number>52</number></property></widget></item>
+               <item>
+                <spacer name="spacerVtPoint">
+                 <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                 <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+                </spacer>
+               </item>
+              </layout>
+             </widget>
+            </item>
+
+            <!-- Row 5a-2: 単木SVGアイコン（プション treesvg.js） -->
+            <item>
+             <widget class="QWidget" name="widgetVtTreeSvg">
+              <layout class="QVBoxLayout" name="layoutVtTreeSvg">
+               <property name="leftMargin"><number>0</number></property>
+               <property name="topMargin"><number>0</number></property>
+               <property name="rightMargin"><number>0</number></property>
+               <property name="bottomMargin"><number>0</number></property>
+               <item>
+                <widget class="QCheckBox" name="chkVtTreeSvg">
+                 <property name="text"><string>単木ポイントデータに樹木アイコンを適用</string></property>
+                 <property name="toolTip"><string>チェックすると、3Dビュー時に樹木アイコンでポイントを表示チェックしない場合は上段で設定したポイントの色・半径設定が優先。</string></property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="lblVtTreeSvgNote">
+                 <property name="text"><string>※ 樹木アイコン表示はOPT2をお持ちの方のみ使用できます。</string></property>
+                 <property name="wordWrap"><bool>true</bool></property>
+                 <property name="styleSheet"><string>color:#888;font-size:11px;</string></property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+
+            <!-- Row 5b: data-driven color rules -->
+
+            <!-- Row 6: label -->
+            <item>
+             <widget class="QWidget" name="widgetVtLabel">
+              <layout class="QVBoxLayout" name="layoutVtLabel">
+               <item>
+                <layout class="QHBoxLayout" name="layoutVtLabelRow1">
+                 <item><widget class="QCheckBox" name="chkVtLabelEnabled"><property name="text"><string>属性ラベル表示</string></property></widget></item>
+                 <item><widget class="QLabel" name="lblVtLabelField"><property name="text"><string>属性フィールド:</string></property></widget></item>
+                 <item>
+                  <widget class="QLineEdit" name="txtVtLabelField">
+                   <property name="placeholderText"><string>例: name, label …</string></property>
+                   <property name="maximumWidth"><number>160</number></property>
+                  </widget>
+                 </item>
+                 <item><widget class="QLabel" name="lblVtLabelSize"><property name="text"><string>サイズ:</string></property></widget></item>
+                 <item>
+                  <widget class="QSpinBox" name="spinVtLabelSize">
+                   <property name="minimum"><number>6</number></property>
+                   <property name="maximum"><number>48</number></property>
+                   <property name="value"><number>12</number></property>
+                   <property name="maximumWidth"><number>70</number></property>
+                  </widget>
+                 </item>
+                 <item><widget class="QLabel" name="lblVtLabelColor"><property name="text"><string>色:</string></property></widget></item>
+                 <item><widget class="QLineEdit" name="txtVtLabelColor"><property name="text"><string>#222222</string></property><property name="maximumWidth"><number>90</number></property></widget></item>
+                 <item><widget class="QPushButton" name="btnVtLabelColor"><property name="text"><string>選択</string></property><property name="maximumWidth"><number>52</number></property></widget></item>
+                 <item><widget class="QCheckBox" name="chkVtLabelHalo"><property name="text"><string>縁取り</string></property><property name="checked"><bool>true</bool></property></widget></item>
+                 <item><widget class="QLineEdit" name="txtVtLabelHaloColor"><property name="text"><string>#ffffff</string></property><property name="maximumWidth"><number>90</number></property></widget></item>
+                 <item><widget class="QPushButton" name="btnVtLabelHaloColor"><property name="text"><string>選択</string></property><property name="maximumWidth"><number>52</number></property></widget></item>
+                 <item>
+                  <spacer name="spacerVtLabelRow1">
+                   <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                   <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+                  </spacer>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="layoutVtLabelRow2">
+                 <item><widget class="QLabel" name="lblVtLabelZoom"><property name="text"><string>属性ラベルの表示ズーム:</string></property></widget></item>
+                 <item>
+                  <widget class="QDoubleSpinBox" name="spinVtLabelMinZoom">
+                   <property name="minimum"><double>0.000000000000000</double></property>
+                   <property name="maximum"><double>24.000000000000000</double></property>
+                   <property name="value"><double>0.000000000000000</double></property>
+                   <property name="maximumWidth"><number>70</number></property>
+                  </widget>
+                 </item>
+                 <item><widget class="QLabel" name="lblVtLabelZoomTo"><property name="text"><string>～</string></property></widget></item>
+                 <item>
+                  <widget class="QDoubleSpinBox" name="spinVtLabelMaxZoom">
+                   <property name="minimum"><double>0.000000000000000</double></property>
+                   <property name="maximum"><double>24.000000000000000</double></property>
+                   <property name="value"><double>24.000000000000000</double></property>
+                   <property name="maximumWidth"><number>70</number></property>
+                  </widget>
+                 </item>
+                 <item>
+                  <spacer name="spacerVtLabelRow2">
+                   <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                   <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+                  </spacer>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+
+           </layout>
+          </widget>
+         </item>
+         <!-- ラスタ（タイル）レイヤのスタイル設定 -->
+         <item>
+          <widget class="QWidget" name="widgetRaster">
+           <layout class="QHBoxLayout" name="layoutRaster">
+            <item><widget class="QLabel" name="lblRasterOpacity"><property name="text"><string>不透明度:</string></property></widget></item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinRasterOpacity">
+              <property name="minimum"><double>0.000000000000000</double></property>
+              <property name="maximum"><double>1.000000000000000</double></property>
+              <property name="singleStep"><double>0.100000000000000</double></property>
+              <property name="value"><double>1.000000000000000</double></property>
+              <property name="maximumWidth"><number>80</number></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblRasterZoom"><property name="text"><string>表示ズーム:</string></property></widget></item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinRasterMinZoom">
+              <property name="minimum"><double>0.000000000000000</double></property>
+              <property name="maximum"><double>24.000000000000000</double></property>
+              <property name="value"><double>0.000000000000000</double></property>
+              <property name="maximumWidth"><number>70</number></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblRasterZoomTo"><property name="text"><string>～</string></property></widget></item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinRasterMaxZoom">
+              <property name="minimum"><double>0.000000000000000</double></property>
+              <property name="maximum"><double>24.000000000000000</double></property>
+              <property name="value"><double>24.000000000000000</double></property>
+              <property name="maximumWidth"><number>70</number></property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="spacerRaster">
+              <property name="orientation"><enum>Qt::Horizontal</enum></property>
+              <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <!-- 属性値色分けルール（VectorTile / fgb 共通） -->
+         <item>
+          <widget class="QWidget" name="widgetVtColorRules">
+           <layout class="QVBoxLayout" name="layoutVtColorRules">
+            <item>
+             <layout class="QHBoxLayout" name="layoutVtColorRulesHeader">
+              <item>
+               <widget class="QCheckBox" name="chkVtColorRule">
+                <property name="text"><string>属性値で色分け</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lblVtColorRuleField">
+                <property name="text"><string>属性フィールド名:</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="txtVtColorRuleField">
+                <property name="placeholderText"><string>例: name, label …</string></property>
+                <property name="maximumWidth"><number>160</number></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnVtAddRule">
+                <property name="text"><string>行追加</string></property>
+                <property name="maximumWidth"><number>70</number></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnVtRemoveRule">
+                <property name="text"><string>行削除</string></property>
+                <property name="maximumWidth"><number>70</number></property>
+               </widget>
+              </item>
+              <item>
+               <spacer>
+                <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QTableWidget" name="tblVtColorRules">
+              <property name="minimumSize">
+               <size>
+                <width>1040</width>
+                <height>130</height>
+               </size>
+              </property>
+              <property name="maximumHeight"><number>130</number></property>
+              <attribute name="horizontalHeaderMinimumSectionSize">
+               <number>34</number>
+              </attribute>
+              <attribute name="horizontalHeaderDefaultSectionSize">
+               <number>140</number>
+              </attribute>
+              <attribute name="verticalHeaderDefaultSectionSize">
+               <number>30</number>
+              </attribute>
+              <column><property name="text"><string>文字列で分類</string></property></column>
+              <column><property name="text"><string>数値で分類（下限値）</string></property></column>
+              <column><property name="text"><string>数値で分類（上限値）</string></property></column>
+              <column><property name="text"><string>配色</string></property></column>
+              <column><property name="text"><string>不透明度（空欄=既定）</string></property></column>
+              <column><property name="text"><string>枠幅／ライン幅（空欄=既定）</string></property></column>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+
+         <item>
+          <layout class="QHBoxLayout" name="layoutApplyStyle">
+           <item>
+            <widget class="QPushButton" name="btnApplyStyle">
+             <property name="minimumSize">
+              <size>
+               <width>200</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>このスタイルをレイヤに適用</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="spacerApplyStyle">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnLoadStyle">
+             <property name="text">
+              <string>スタイル設定をファイルから読込</string>
+             </property>
+             <property name="toolTip">
+              <string>別の地図作成時に保存したスタイル設定を読み込み、このレイヤの初期値としてプリセットします。読込後も各項目は手修正できます。</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnSaveStyle">
+             <property name="text">
+              <string>このスタイル設定をファイルで保存</string>
+             </property>
+             <property name="toolTip">
+              <string>現在UIに入力されているこのレイヤのスタイル設定をファイルに保存します。別の地図作成時に使い回せます。</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupOption">
+     <property name="title">
+      <string>表示オプション</string>
+     </property>
+     <layout class="QVBoxLayout" name="layoutOption">
+      <item>
+       <layout class="QHBoxLayout" name="layoutOptionRow1">
+        <item>
+         <widget class="QCheckBox" name="chkLayerPanel">
+          <property name="text">
+           <string>レイヤパネル</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkZoom">
+          <property name="text">
+           <string>ズームコントロール</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkScale">
+          <property name="text">
+           <string>スケールバー</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkCoord">
+          <property name="text">
+           <string>マウス座標</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkAddrSearch">
+          <property name="text">
+           <string>住所検索</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkGps">
+          <property name="text">
+           <string>現在地取得</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkShareLink">
+          <property name="text">
+           <string>地図共有リンク</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkPopup">
+          <property name="text">
+           <string>属性ポップアップ</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerOptionRow1">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutOptionRow2">
+        <item>
+         <widget class="QCheckBox" name="chkFeatureSearch">
+          <property name="text">
+           <string>属性検索バー</string>
+          </property>
+          <property name="toolTip">
+           <string>ベクタレイヤの属性値で地物を検索し、該当範囲へ画面遷移できる検索バーを画面下部に常設します。</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkAreaCalc">
+          <property name="text">
+           <string>面積計算</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkDistCalc">
+          <property name="text">
+           <string>距離計算</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkDraw">
+          <property name="text">
+           <string>作図機能</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkDrawExport">
+          <property name="text">
+           <string>作図データ出力</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkGeoJsonImport">
+          <property name="text">
+           <string>外部データ入力</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkExternalTile">
+          <property name="text">
+           <string>外部タイル入力</string>
+          </property>
+          <property name="toolTip">
+           <string>閲覧者がXYZ形式のラスタタイル（{z}/{x}/{y}）URLを入力して地図に重ねられるボタンを追加します。表示ズーム範囲も指定できます。</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkTerrain3D">
+          <property name="text">
+           <string>3D表示</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkSplitView">
+          <property name="text">
+           <string>スプリットビュー</string>
+          </property>
+          <property name="toolTip">
+           <string>現在のレイヤ表示で固定した左ビューと、レイヤパネルで調整できる右ビューを並べて比較します。中心位置・ズームは連動し、境界はドラッグで左右に動かせます。</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerOptionRow2">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutOptionRow3">
+        <item>
+         <widget class="QCheckBox" name="chkStats">
+          <property name="text">
+           <string>属性値集計・分析※OPT2</string>
+          </property>
+          <property name="toolTip">
+           <string>選択フィーチャーの属性を集計し、統計表・グラフを表示します。※オプションパックをお持ちの方のみ使用できます。</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+         <item>
+         <widget class="QCheckBox" name="chkPrint">
+          <property name="text">
+           <string>地図印刷※OPT2</string>
+          </property>
+          <property name="toolTip">
+           <string>現在の地図表示を所定のA4横テンプレートにレイアウトして印刷します。※オプションパックをお持ちの方のみ使用できます。</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkRoadSim">
+          <property name="text"><string>路網設計シミュレート※OPT2</string></property>
+          <property name="toolTip"><string>標高タイルを用いて勾配制約付きの林道・林業専用道・森林作業道の線形を自動探索し、縦断図検証・バッファ単木集計・GeoJSON出力を行います。※オプションパックをお持ちの方のみ使用できます。</string></property>
+          <property name="checked"><bool>false</bool></property>
+         </widget>
+        </item>
+        <item>
+          <widget class="QCheckBox" name="chkRoute">
+          <property name="text"><string>ルート検索※OPT2</string></property>
+          <property name="toolTip"><string>国土数値情報・道路データを用いて、起点・終点から速度優先と距離優先の2経路を検索します。通行不能ポリゴンがあれば回避します。※オプションパックをお持ちの方のみ使用できます。</string></property>
+          <property name="checked"><bool>false</bool></property>
+          </widget>
+        </item>
+        <item>
+          <widget class="QCheckBox" name="chkCableSim">
+          <property name="text"><string>架線設計シミュレート※OPT2</string></property>
+          <property name="toolTip"><string>標高タイルを用いて主索（架線）の通り・クリアランス・主索安全係数（規定2.7）を概算し、必要支柱高や中間サポートの要否、横取り範囲内の単木集計・採算（材積×単価）を表示します。エンドレスタイラー／タワーヤーダに対応。※オプションパックをお持ちの方のみ使用できます。</string></property>
+          <property name="checked"><bool>false</bool></property>
+          </widget>
+        </item>
+        <item>
+         <spacer name="spacerOptionRow3">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupOutput">
+     <property name="title">
+      <string>出力 HTML ファイル</string>
+     </property>
+     <layout class="QHBoxLayout" name="layoutOutput">
+      <item>
+       <widget class="QLineEdit" name="txtOutput"/>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnBrowse">
+        <property name="minimumSize">
+         <size>
+          <width>150</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>参照...</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupLicense">
+     <property name="title">
+      <string>オプション ライセンスコード</string>
+     </property>
+     <layout class="QFormLayout" name="formLicense">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblLicenseOpt1">
+        <property name="text">
+         <string>OPT1（微地形表現図など地形表現、気象アニメーション）</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="txtLicenseOpt1">
+        <property name="placeholderText">
+         <string>未入力の場合、オプション1は無効になります</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblLicenseOpt2">
+        <property name="text">
+         <string>OPT2（単木アイコン表示、属性集計、地図印刷、路網/架線シミュレート、ルート検索）</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="txtLicenseOpt2">
+        <property name="placeholderText">
+         <string>未入力の場合、オプション2は無効になります</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btnRun">
+     <property name="text">
+      <string>HTML 出力</string>
+     </property>
+     <property name="minimumHeight">
+      <number>40</number>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
