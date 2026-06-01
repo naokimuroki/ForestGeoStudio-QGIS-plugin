@@ -2275,8 +2275,11 @@ map.on("mousemove", e => {
         addr_html = """
 <button class="ctrl-btn" id="btn-addr" onclick="toggleAddr()">📒 住所検索</button>
 <div id="addr-panel" class="addr-panel">
-  <input id="addr-input" type="text" placeholder="住所・地名を入力" />
-  <button onclick="searchAddress()">検索</button>
+  <div class="addr-row">
+    <input id="addr-input" type="text" placeholder="住所・地名を入力" />
+    <button onclick="searchAddress()">検索</button>
+  </div>
+  <ul id="addr-results" class="addr-results"></ul>
 </div>""" if opts["addr_search"] else ""
 
         gps_html = '<button class="ctrl-btn" onclick="getLocation()">📌 現在地</button>' if opts["gps"] else ""
@@ -2288,16 +2291,43 @@ function toggleAddr(){
 }
 async function searchAddress(){
   const q = document.getElementById("addr-input").value.trim();
+  const list = document.getElementById("addr-results");
   if(!q) return;
-  const res = await fetch("https://msearch.gsi.go.jp/address-search/AddressSearch?q=" + encodeURIComponent(q));
-  const data = await res.json();
-  if(!data.length){ alert("住所が見つかりませんでした"); return; }
-  const [lng, lat] = data[0].geometry.coordinates;
+  list.innerHTML = '<li class="addr-msg">検索中…</li>';
+  let data;
+  try{
+    const res = await fetch("https://msearch.gsi.go.jp/address-search/AddressSearch?q=" + encodeURIComponent(q));
+    data = await res.json();
+  }catch(e){
+    list.innerHTML = '<li class="addr-msg">検索に失敗しました</li>';
+    return;
+  }
+  if(!Array.isArray(data) || !data.length){
+    list.innerHTML = '<li class="addr-msg">住所が見つかりませんでした</li>';
+    return;
+  }
+  list.innerHTML = "";
+  data.forEach(function(f){
+    const c = f.geometry && f.geometry.coordinates;
+    if(!c) return;
+    const title = (f.properties && f.properties.title) || (c[1].toFixed(5) + ", " + c[0].toFixed(5));
+    const li = document.createElement("li");
+    li.textContent = title;
+    li.onclick = function(){ goToAddr(c[0], c[1], title); };
+    list.appendChild(li);
+  });
+  // 候補が1件だけなら従来どおり自動でジャンプ
+  if(data.length === 1){
+    const c = data[0].geometry.coordinates;
+    goToAddr(c[0], c[1], (data[0].properties && data[0].properties.title) || "");
+  }
+}
+function goToAddr(lng, lat, title){
   map.flyTo({ center: [lng, lat], zoom: 14 });
   if(window._addrMk) window._addrMk.remove();
   window._addrMk = new maplibregl.Marker({ color: "#c84b31" })
     .setLngLat([lng, lat])
-    .setPopup(new maplibregl.Popup().setText(data[0].properties.title))
+    .setPopup(new maplibregl.Popup().setText(title || ""))
     .addTo(map)
     .togglePopup();
 }
@@ -3769,10 +3799,15 @@ html,body{{height:100%;font-family:var(--font);font-size:13px}}
 #btn-tools{{font-size:11px;padding:5px 10px}}
 #tool-group{{display:flex;flex-direction:column;gap:4px}}
 #tool-group.collapsed{{display:none}}
-.addr-panel{{display:none;position:absolute;top:10px;left:134px;z-index:30;background:var(--panel-bg);border-radius:var(--r);box-shadow:var(--shadow);padding:6px;width:270px;gap:4px}}
+.addr-panel{{display:none;position:absolute;top:10px;left:134px;z-index:30;background:var(--panel-bg);border-radius:var(--r);box-shadow:var(--shadow);padding:6px;width:270px;flex-direction:column;gap:4px}}
 .addr-panel.open{{display:flex}}
+.addr-row{{display:flex;gap:4px}}
 .addr-panel input{{flex:1;border:1px solid #ccd;border-radius:var(--r);padding:4px 8px;font-size:13px;font-family:var(--font)}}
 .addr-panel button{{background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:4px 10px;cursor:pointer;font-size:13px}}
+.addr-results{{list-style:none;margin:4px 0 0;padding:0;max-height:220px;overflow-y:auto}}
+.addr-results li{{padding:5px 8px;font-size:13px;cursor:pointer;border-radius:var(--r);color:#222}}
+.addr-results li:hover{{background:rgba(0,0,0,.07)}}
+.addr-results li.addr-msg{{cursor:default;color:#888}}
 .exttile-panel{{display:none;position:absolute;top:10px;left:134px;z-index:30;background:var(--panel-bg);border-radius:var(--r);box-shadow:var(--shadow);padding:8px;width:280px;flex-direction:column;gap:6px;color:#222}}
 .exttile-panel.open{{display:flex}}
 .exttile-panel input{{border:1px solid #ccd;border-radius:var(--r);padding:4px 8px;font-size:12px;font-family:var(--font);width:100%}}
