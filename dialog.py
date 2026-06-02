@@ -43,7 +43,7 @@ LICENSE_SERVER_BASE = "https://forestgeo.info/ForestGeoStudio"
 # 各オプションが必要とする保護JS（サーバの option1/ option2/ に配置）。
 #   オプション1: 微地形表現図（5種）
 #   オプション2: 属性集計 + 単木アイコン
-OPTION1_FEATURE_KEYS = ("csmap", "inyouzu", "mpirrim", "cimap", "colorrelief", "twi", "topex", "weather")
+OPTION1_FEATURE_KEYS = ("csmap", "inyouzu", "mpirrim", "cimap", "colorrelief", "twi", "topex", "weather", "kikikuru")
 # =====================================================================
 
 THEMES = {
@@ -328,20 +328,31 @@ _FEATURE_SEARCH_JS_TEMPLATE = r"""
   const fieldSel = document.getElementById("fs-field");
   const input    = document.getElementById("fs-input");
   const statusEl = document.getElementById("fs-status");
-  if(!layerSel || !FS_LAYERS.length) return;
+  if(!layerSel) return;
 
-  // 1レイヤだけなら選択プルダウンは隠す
-  if(FS_LAYERS.length === 1){ layerSel.style.display = "none"; }
-
-  FS_LAYERS.forEach(function(l, i){
-    const o = document.createElement("option");
-    o.value = String(i); o.textContent = l.name;
-    layerSel.appendChild(o);
-  });
+  // レイヤ選択プルダウンを現在の FS_LAYERS から組み直す。
+  // （外部データ読込で実行時にレイヤが増減するため、その都度呼ぶ）
+  function rebuildLayerOptions(){
+    const prev = layerSel.value;
+    layerSel.innerHTML = "";
+    FS_LAYERS.forEach(function(l, i){
+      const o = document.createElement("option");
+      o.value = String(i); o.textContent = l.name;
+      layerSel.appendChild(o);
+    });
+    // 1レイヤだけなら選択プルダウンは隠す
+    layerSel.style.display = (FS_LAYERS.length <= 1) ? "none" : "";
+    if(prev && Number(prev) < FS_LAYERS.length) layerSel.value = prev;
+    refreshFields();
+    // 検索対象が無いうちはバー全体を隠す（外部読込で増えたら表示）
+    var bar = document.getElementById("feature-search-bar");
+    if(bar) bar.style.display = FS_LAYERS.length ? "" : "none";
+  }
 
   function refreshFields(){
     fieldSel.innerHTML = "";
     const l = FS_LAYERS[Number(layerSel.value) || 0];
+    if(!l) return;
     (l.fields || []).forEach(function(f){
       const o = document.createElement("option");
       o.value = f; o.textContent = f;
@@ -349,8 +360,24 @@ _FEATURE_SEARCH_JS_TEMPLATE = r"""
     });
   }
   layerSel.addEventListener("change", refreshFields);
-  refreshFields();
+  rebuildLayerOptions();
   input.addEventListener("keydown", function(e){ if(e.key === "Enter") runFeatureSearch(); });
+
+  // 外部データ読込レイヤの実行時登録。importExternal から呼ばれる。
+  //   layer = { id, name, fields:[...], features:[...] }（features はインメモリ全件）
+  window.__featureSearchRegister = function(layer){
+    if(!layer || !layer.id) return;
+    for(var i=0;i<FS_LAYERS.length;i++){ if(FS_LAYERS[i].id === layer.id) return; } // 重複防止
+    FS_LAYERS.push(layer);
+    rebuildLayerOptions();
+    // 検索バーが隠れている場合に備えて表示しておく
+    var bar = document.getElementById("feature-search-bar");
+    if(bar) bar.style.display = "";
+  };
+  window.__featureSearchUnregister = function(layerId){
+    for(var i=FS_LAYERS.length-1;i>=0;i--){ if(FS_LAYERS[i].id === layerId) FS_LAYERS.splice(i,1); }
+    rebuildLayerOptions();
+  };
 
   function ensureHighlightLayers(){
     if(!map.getSource("_fsearch-src")){
@@ -384,6 +411,14 @@ _FEATURE_SEARCH_JS_TEMPLATE = r"""
   // レイヤごとに全件パース結果をキャッシュ（2回目以降の検索を高速化）
   const _fsCache = {};
   async function loadAllFeatures(l){
+    // 外部データ読込レイヤ: 取り込み時に渡されたインメモリ全件を使う
+    if(l.features && l.features.length !== undefined) return l.features;
+    // マップのGeoJSONソースから直接読む（フォールバック）
+    if(l.sourceId && map.getSource(l.sourceId)){
+      const d = map.getSource(l.sourceId)._data;
+      if(d && d.features) return d.features;
+    }
+    // fgb レイヤ: URL から全件デシリアライズ
     if(_fsCache[l.url]) return _fsCache[l.url];
     const resp = await fetch(l.url);
     if(!resp.ok) throw new Error("HTTP " + resp.status);
@@ -1461,6 +1496,7 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 "twi":        self.chkTwi.isChecked()        if hasattr(self, "chkTwi")       else False,
                 "topex":      self.chkTopex.isChecked()      if hasattr(self, "chkTopex")     else False,
                 "weather":    self.chkWeather.isChecked()    if hasattr(self, "chkWeather")   else False,
+                "kikikuru":     self.chkKikikuru.isChecked()    if hasattr(self, "chkKikikuru")    else False,
                 # 各微地形・気象レイヤの「表示」初期状態（出力ONかつ表示OFFなら初期非表示）
                 "csmap_vis":       self.chkCsmapVis.isChecked()       if hasattr(self, "chkCsmapVis")       else True,
                 "inyouzu_vis":     self.chkInyouzuVis.isChecked()     if hasattr(self, "chkInyouzuVis")     else True,
@@ -1470,6 +1506,7 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 "twi_vis":         self.chkTwiVis.isChecked()         if hasattr(self, "chkTwiVis")         else True,
                 "topex_vis":       self.chkTopexVis.isChecked()       if hasattr(self, "chkTopexVis")       else True,
                 "weather_vis":     self.chkWeatherVis.isChecked()     if hasattr(self, "chkWeatherVis")     else True,
+                "kikikuru_vis":    self.chkKikikuruVis.isChecked()    if hasattr(self, "chkKikikuruVis")    else True,
                 # 種類2ベースマップの「表示」初期状態（チェックを外すと初期非表示で開始）
                 "basemap2_vis":    self.chkBasemap2Vis.isChecked()    if hasattr(self, "chkBasemap2Vis")    else True,
                 "feature_search":  self.chkFeatureSearch.isChecked()  if hasattr(self, "chkFeatureSearch")  else True,
@@ -1978,6 +2015,8 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         panel_basemap_js = ""     # ベースマップのパネルトグル（パネル最上段＝描画最下層）
         micro_init = {}           # 微地形系 init JS（キー: 機能名）
         micro_panel = {}          # 微地形系 パネルトグル JS（キー: 機能名）
+        kikikuru_init_js = ""     # キキクル init JS
+        kikikuru_panel_js = ""    # キキクル パネルトグル
         weather_init_js = ""      # 気象 init JS（描画最上層＝最後に addLayer）
         weather_panel_js = ""     # 気象 パネルトグル（パネル最下段）
         terrain_init_js = ""      # 3D地形 sky レイヤ init
@@ -2768,9 +2807,25 @@ function kmlToGeoJSON(text){
   if(xml.getElementsByTagName("parsererror").length) throw new Error("KML解析エラー");
   function pc(str){ return str.trim().split(/\\s+/).map(function(t){ var p=t.split(","),c=[parseFloat(p[0]),parseFloat(p[1])]; if(p.length>2&&isFinite(parseFloat(p[2])))c.push(parseFloat(p[2])); return c; }).filter(function(c){return isFinite(c[0])&&isFinite(c[1]);}); }
   var feats=[],pms=xml.getElementsByTagName("Placemark");
+  // Placemark から属性（name / description / ExtendedData）を収集する
+  function _kmlText(parent,tag){ var e=parent.getElementsByTagName(tag)[0]; return e?e.textContent.trim():null; }
+  function _kmlProps(pm){
+    var props={};
+    var nm=_kmlText(pm,"name"); if(nm) props.name=nm;
+    var desc=_kmlText(pm,"description");
+    if(desc) props.description=desc.replace(/<[^>]*>/g," ").replace(/\\s+/g," ").trim();
+    var ed=pm.getElementsByTagName("ExtendedData")[0];
+    if(ed){
+      var ds=ed.getElementsByTagName("Data");           // <Data name="X"><value>V</value></Data>
+      for(var x=0;x<ds.length;x++){ var k=ds[x].getAttribute("name"); if(!k) continue; var v=ds[x].getElementsByTagName("value")[0]; props[k]=v?v.textContent.trim():""; }
+      var sd=ed.getElementsByTagName("SimpleData");      // <SimpleData name="X">V</SimpleData>
+      for(var y=0;y<sd.length;y++){ var k2=sd[y].getAttribute("name"); if(!k2) continue; props[k2]=sd[y].textContent.trim(); }
+    }
+    return props;
+  }
   for(var i=0;i<pms.length;i++){
-    var pm=pms[i], nN=pm.getElementsByTagName("name")[0], nm=nN?nN.textContent:null;
-    var props=nm?{name:nm}:{};
+    var pm=pms[i];
+    var props=_kmlProps(pm);
     function add(geom){ if(geom) feats.push({type:"Feature",properties:props,geometry:geom}); }
     var P=pm.getElementsByTagName("Point");
     for(var a=0;a<P.length;a++){ var pcn=P[a].getElementsByTagName("coordinates")[0]; if(pcn){ var ar=pc(pcn.textContent); if(ar.length) add({type:"Point",coordinates:ar[0]}); } }
@@ -2794,12 +2849,15 @@ function gpxToGeoJSON(text){
   if(xml.getElementsByTagName("parsererror").length) throw new Error("GPX解析エラー");
   function pcoord(n){ var lat=parseFloat(n.getAttribute("lat")),lon=parseFloat(n.getAttribute("lon")); if(!isFinite(lat)||!isFinite(lon))return null; var e=n.getElementsByTagName("ele")[0],c=[lon,lat]; if(e&&isFinite(parseFloat(e.textContent)))c.push(parseFloat(e.textContent)); return c; }
   function seg(nodes){ var a=[]; for(var k=0;k<nodes.length;k++){ var c=pcoord(nodes[k]); if(c)a.push(c);} return a; }
+  // 直下の子要素テキストのみ取得（trkpt の ele などを trk 属性に混ぜないため）
+  function _childText(node,tag){ var ch=node.childNodes; for(var i=0;i<ch.length;i++){ if(ch[i].nodeType===1 && ch[i].nodeName.toLowerCase()===tag) return (ch[i].textContent||"").trim(); } return null; }
+  function _gpxProps(node,tags){ var props={}; for(var i=0;i<tags.length;i++){ var v=_childText(node,tags[i]); if(v!=null && v!=="") props[tags[i]]=v; } return props; }
   var feats=[],W=xml.getElementsByTagName("wpt");
-  for(var i=0;i<W.length;i++){ var c=pcoord(W[i]); if(c){ var nm=W[i].getElementsByTagName("name")[0]; feats.push({type:"Feature",properties:nm?{name:nm.textContent}:{},geometry:{type:"Point",coordinates:c}}); } }
+  for(var i=0;i<W.length;i++){ var c=pcoord(W[i]); if(c){ feats.push({type:"Feature",properties:_gpxProps(W[i],["name","desc","cmt","sym","type","ele","time"]),geometry:{type:"Point",coordinates:c}}); } }
   var T=xml.getElementsByTagName("trk");
-  for(var t=0;t<T.length;t++){ var S=T[t].getElementsByTagName("trkseg"); for(var s=0;s<S.length;s++){ var ar=seg(S[s].getElementsByTagName("trkpt")); if(ar.length>=2) feats.push({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:ar}}); } }
+  for(var t=0;t<T.length;t++){ var tp=_gpxProps(T[t],["name","desc","cmt","type","src"]); var S=T[t].getElementsByTagName("trkseg"); for(var s=0;s<S.length;s++){ var ar=seg(S[s].getElementsByTagName("trkpt")); if(ar.length>=2) feats.push({type:"Feature",properties:tp,geometry:{type:"LineString",coordinates:ar}}); } }
   var R=xml.getElementsByTagName("rte");
-  for(var r=0;r<R.length;r++){ var ar2=seg(R[r].getElementsByTagName("rtept")); if(ar2.length>=2) feats.push({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:ar2}}); }
+  for(var r=0;r<R.length;r++){ var rp=_gpxProps(R[r],["name","desc","cmt","type","src"]); var ar2=seg(R[r].getElementsByTagName("rtept")); if(ar2.length>=2) feats.push({type:"Feature",properties:rp,geometry:{type:"LineString",coordinates:ar2}}); }
   return {type:"FeatureCollection",features:feats};
 }
 """ if (opts["geojson_import"] or (opts["draw"] and opts["draw_export"])) else ""
@@ -2859,6 +2917,85 @@ map.on("load", () => {
   // インポート用ソース・レイヤはファイルごとに動的追加
 });
 
+// ---- 外部データ読込レイヤの対話化（ポップアップ／属性集計／属性検索）----
+// 取り込んだベクタは実体のあるベクタレイヤ（_import-*）として追加済みなので、
+// 生成時には存在しなかったこれらレイヤを実行時に各機能へ登録する。
+let _importPopup = null;
+const _importPopupLayerIds = [];   // クリックでポップアップ対象とする _import-* レイヤID
+let _importClickBound = false;
+
+function _importBuildPopupHTML(props){
+  const rows = Object.entries(props || {})
+    .filter(([k]) => !String(k).startsWith("_"))
+    .map(([key, value]) => `<tr><td class="pk">${key}</td><td>${value ?? ""}</td></tr>`)
+    .join("");
+  return rows ? `<table class="ptbl">${rows}</table>` : "<em>属性なし</em>";
+}
+function _importGetPopup(){
+  // 既存の共有ポップアップがあれば再利用、無ければ専用ポップアップを生成
+  if (typeof popup !== "undefined" && popup) return popup;
+  if (!_importPopup) _importPopup = new maplibregl.Popup({ closeButton: true, maxWidth: "320px" });
+  return _importPopup;
+}
+function _importBindPopup(ids){
+  ids.forEach(function(layerId){
+    if (_importPopupLayerIds.indexOf(layerId) < 0) _importPopupLayerIds.push(layerId);
+    map.on("mouseenter", layerId, function(){ map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", layerId, function(){ map.getCanvas().style.cursor = ""; });
+  });
+  if (_importClickBound) return;
+  _importClickBound = true;
+  // 1つのクリックハンドラで登録済み _import-* レイヤをまとめて判定する
+  map.on("click", function(e){
+    if (window.__statsActive) return;          // 属性集計モード中はポップアップ抑止
+    const layers = _importPopupLayerIds.filter(function(id){ return map.getLayer(id); });
+    if (!layers.length) return;
+    const feats = map.queryRenderedFeatures(e.point, { layers: layers });
+    if (!feats || !feats.length) return;
+    _importGetPopup()
+      .setLngLat(e.lngLat)
+      .setHTML(_importBuildPopupHTML(feats[0].properties || {}))
+      .addTo(map);
+  });
+}
+
+// 取り込んだフィーチャ配列から、集計・検索に使える属性フィールド名を抽出
+function _importCollectFields(feats){
+  const seen = Object.create(null);
+  const order = [];
+  for (let i = 0; i < feats.length && i < 2000; i++){
+    const p = feats[i] && feats[i].properties;
+    if (!p) continue;
+    for (const k in p){
+      if (!Object.prototype.hasOwnProperty.call(p, k)) continue;
+      if (String(k).charAt(0) === "_") continue;        // システム的フィールドは除外
+      if (!seen[k]){ seen[k] = true; order.push(k); }
+    }
+  }
+  return order;
+}
+
+// _import-* の3レイヤ（fill/line/circle）を各機能へ登録する
+function _registerImportInteractivity(baseId, name, feats){
+  const ids = [baseId+"-fill", baseId+"-line", baseId+"-circle"];
+  // 1) 属性ポップアップ
+  _importBindPopup(ids);
+  // 2) 属性集計（stats-extension.js が有効なときのみ）
+  if (window.__statsRegisterExternal) {
+    try { window.__statsRegisterExternal(ids, name); } catch(e){ console.warn("[import] stats register failed", e); }
+  }
+  // 3) 属性検索（feature-search が有効なときのみ）
+  if (window.__featureSearchRegister) {
+    try {
+      window.__featureSearchRegister({
+        id: baseId, name: name, sourceId: baseId,
+        fields: _importCollectFields(feats || []),
+        features: feats || []
+      });
+    } catch(e){ console.warn("[import] search register failed", e); }
+  }
+}
+
 function importExternal(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -2894,6 +3031,16 @@ function importExternal(event) {
       addToggle([id+"-fill", id+"-line", id+"-circle"], "📂 " + file.name, "geojson", [], true);
     }
 
+    // 取り込みデータをフィーチャ配列へ正規化（対話化登録・範囲フィットで共用）
+    const _importFeats =
+      data.type === "FeatureCollection" ? (data.features || []) :
+      data.type === "Feature"           ? [data] :
+      data.type === "GeometryCollection"? (data.geometries || []).map(g => ({ type:"Feature", geometry:g, properties:{} })) :
+      (data.geometry || data.type)      ? [{ type:"Feature", geometry:(data.geometry || data), properties:(data.properties || {}) }] : [];
+
+    // 属性ポップアップ・属性集計・属性検索に対応させる
+    _registerImportInteractivity(id, file.name, _importFeats);
+
     // バウンディングボックスにフィット
     try {
       const coords = [];
@@ -2905,8 +3052,7 @@ function importExternal(event) {
         else if (geom.type === "MultiPolygon") geom.coordinates.forEach(p => p.forEach(r => r.forEach(c => coords.push(c))));
         else if (geom.type === "GeometryCollection") geom.geometries.forEach(collectCoords);
       }
-      const features = data.type === "FeatureCollection" ? data.features : data.type === "Feature" ? [data] : [];
-      features.forEach(f => collectCoords(f.geometry));
+      _importFeats.forEach(f => collectCoords(f.geometry));
       if (coords.length) {
         const lngs = coords.map(c => c[0]), lats = coords.map(c => c[1]);
         map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 40 });
@@ -3032,6 +3178,22 @@ function addExternalTile(){
                 "    WeatherExtension.addPanelToggle(map, '気象（降水量・風向風速）', %s);\n"
                 "  }\n"
             ) % _w_vis
+
+        # ---- 気象庁キキクル（危険度分布）オプション ----
+        if opts.get("kikikuru", False) and opt1_ok:
+            _need_opt1("kikikuru.js")
+            kikikuru_init_js = (
+                "  // キキクル（土砂・浸水・洪水の危険度分布）を追加（最上位レイヤ）\n"
+                "  if (typeof KikikuruExtension !== 'undefined') {\n"
+                "    KikikuruExtension.addToMap(map);\n"
+                "  }\n"
+            )
+            _k_vis = "true" if opts.get("kikikuru_vis", True) else "false"
+            kikikuru_panel_js = (
+                "  if (typeof KikikuruExtension !== 'undefined') {\n"
+                "    KikikuruExtension.addPanelToggle(map, '気象庁キキクル', %s);\n"
+                "  }\n"
+            ) % _k_vis
 
         # ---- CS立体図（標高タイル）オプション ----
         csmap_script_tag = ""
@@ -3472,7 +3634,10 @@ function toggle3DView() {
             stats_geojson_ids = [i for i in popup_layer_ids if isinstance(i, str)]
             stats_vt_ids = [i[0] for i in popup_layer_ids if isinstance(i, tuple)]
             stats_ids = stats_geojson_ids + stats_vt_ids
-            if stats_ids:
+            # 外部データ読込が有効なら、生成時に集計対象レイヤが無くても
+            # stats-extension を起動しておき、実行時に取り込んだベクタを後追い登録する。
+            stats_allow_external = bool(opts.get("geojson_import", False))
+            if stats_ids or stats_allow_external:
                 # レイヤID → レイヤ名（パネル表示用）
                 stats_name_map = {}
                 for _ids, _nm, _knd, _lg, _vis in layer_id_groups:
@@ -3482,6 +3647,7 @@ function toggle3DView() {
                     "layers": stats_ids,
                     "layerNames": {i: stats_name_map.get(i, i) for i in stats_ids},
                     "theme": {"main": theme["main"], "dark": theme["dark"]},
+                    "allowExternal": stats_allow_external,
                 }
                 # stats-extension.js は認証付きローダーで取得・注入する。
                 _need_opt2("stats-extension.js")
@@ -3661,17 +3827,17 @@ function toggle3DView() {
         micro_panel_js = "".join(micro_panel.get(k, "") for k in micro_order)
         # この時点の load_js は QGIS レイヤ＋オプション2 操作系を含む。
         # 先頭へ 3D sky → 微地形群、末尾へ 気象 を連結し最終的な描画順を確定する。
-        load_js = terrain_init_js + micro_init_js + load_js + weather_init_js
+        load_js = terrain_init_js + micro_init_js + load_js + kikikuru_init_js + weather_init_js
 
         # パネル: 上段＝描画下層。ベースマップ → 微地形 → QGIS → 気象 の順に addToggle。
         for _bm_id, _bm_name, _bm_vis in basemap_panel_entries:
             panel_basemap_js += (
                 "  if (map.getLayer(%s)) addToggle([%s], %s, 'raster', [], %s);\n"
                 % (json.dumps(_bm_id), json.dumps(_bm_id),
-                   json.dumps("ベースマップ: " + _bm_name, ensure_ascii=False),
+                   json.dumps(_bm_name, ensure_ascii=False),
                    "true" if _bm_vis else "false")
             )
-        panel_js = panel_basemap_js + micro_panel_js + panel_qgis_js + weather_panel_js
+        panel_js = panel_basemap_js + micro_panel_js + panel_qgis_js + kikikuru_panel_js + weather_panel_js
 
         # ===== 属性検索バー（ベクタレイヤの属性値で地物検索）=====
         feature_search_html = ""
@@ -3687,7 +3853,10 @@ function toggle3DView() {
                         "geom": _l.get("geom", "Point"),
                         "fields": _l.get("fields", []),
                     })
-            if fs_layers:
+            # 外部データ読込が有効なら、fgb レイヤが無くても検索バーを出しておき、
+            # 実行時に取り込んだベクタを後追い登録できるようにする。
+            fs_allow_external = bool(opts.get("geojson_import", False))
+            if fs_layers or fs_allow_external:
                 feature_search_html = (
                     '<div id="feature-search-bar">'
                     '<span class="fs-label">🔍 属性検索</span>'
