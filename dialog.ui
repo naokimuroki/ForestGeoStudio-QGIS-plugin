@@ -782,6 +782,43 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         </item>
        </layout>
       </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRow8">
+        <item>
+         <widget class="QCheckBox" name="chkKikikuru">
+          <property name="text">
+           <string>気象庁キキクル（土砂・浸水・洪水の危険度分布）をリアルタイム表示/※同上</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkKikikuruVis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerKikikuru">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
      </layout>
     </widget>
    </item>
