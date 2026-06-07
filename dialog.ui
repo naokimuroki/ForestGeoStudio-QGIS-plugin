@@ -2002,6 +2002,13 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
          </widget>
         </item>
         <item>
+         <widget class="QCheckBox" name="chkZoning">
+          <property name="text"><string>ゾーニング※OPT2</string></property>
+          <property name="toolTip"><string>標高タイル、林野庁オープンデータ等を用いて「もりぞん」ゾーニングをシミュレートできます。※オプションパックをお持ちの方のみ使用できます。</string></property>
+          <property name="checked"><bool>false</bool></property>
+         </widget>
+        </item>
+        <item>
          <widget class="QCheckBox" name="chkRoadSim">
           <property name="text"><string>路網設計シミュレート※OPT2</string></property>
           <property name="toolTip"><string>標高タイルを用いて勾配制約付きの林道・林業専用道・森林作業道の線形を自動探索し、縦断図検証・バッファ単木集計・GeoJSON出力を行います。※オプションパックをお持ちの方のみ使用できます。</string></property>
