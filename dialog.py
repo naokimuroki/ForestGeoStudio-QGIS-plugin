@@ -35,14 +35,11 @@ FORM_CLASS, _ = uic.loadUiType(
 )
 
 # ===================== オプション ライセンス設定 =====================
-# 認証サーバ（PHP）の公開URL。末尾スラッシュなし。
-#   token.php : ライセンスコード→永続トークン発行
-#   js.php    : トークン検証→保護JS配信
+# 認証サーバ（PHP）の公開URL。
 LICENSE_SERVER_BASE = "https://forestgeo.info/ForestGeoStudio"
-
-# 各オプションが必要とする保護JS（サーバの option1/ option2/ に配置）。
-#   オプション1: 微地形表現図（5種）
-#   オプション2: 属性集計 + 単木アイコン
+# 各オプションが必要とする保護JS
+#   オプション1: 微地形表現図など
+#   オプション2: 属性集計など
 OPTION1_FEATURE_KEYS = ("csmap", "inyouzu", "mpirrim", "cimap", "colorrelief", "twi", "topex", "weather", "kikikuru")
 # =====================================================================
 
@@ -108,7 +105,6 @@ GEOM_MAP = {
 
 # 単木アイコン（treesvg.js）が参照する属性フィールド名。
 # データ側のフィールド名が異なる場合はここを変更する。
-#   - 胸高直径・樹冠幅・樹幹長(枝下高)は使用しない（樹冠幅はNodataがあり得るため）。
 TREE_SVG_FIELDS = {
     "height": "樹高",        # 樹高（m）— アイコン・円の大小調整に使用
     "crown_ratio": "樹冠長率",  # 樹冠長率（1-100, 任意）— 形状3段階の切替に使用
@@ -155,18 +151,6 @@ TREE_SVG_ICON_MIN_SIZE = 0.04
 
 
 # 単木SVGアイコン（treesvg.js）連携用 JS テンプレート。
-# 描画方式: MapLibre ネイティブの symbol レイヤ（WebGL）で大量描画に対応する。
-#   - treesvg.js（createTreeSVG）で「樹種×樹冠長率3段階（樹幹+樹冠）」＋「樹種×樹冠のみ」
-#     の計24アイコンを起動時に一度だけラスタライズ（=PNGスプライト相当）し addImage 登録。
-#   - icon-size はズーム連動で「樹高(m)」から実寸換算（樹冠幅は使わない）。
-#   - icon-image は step(zoom) で 16未満=樹冠のみ / 16以上=樹幹+樹冠、
-#     さらに樹冠長率の step(<30/30-50/>=50) で形状を3段階に切替。
-#   - icon-pitch-alignment:viewport で地形上に「直立（ビルボード）」表示。
-#   - createTreeSVG が無い場合はアイコンを作らず、黒い円のフォールバックを継続。
-# プレースホルダ（_build_html で json.dumps 値に置換）:
-#   __TREE_LAYERS_JSON__ / __TREE_SPECIES_JSON__ / __TREE_TIERS_JSON__ /
-#   __TREE_ICON_PREFIX__ / __TREE_ICON_IMAGE_EXPR__ / __TREE_ICON_SIZE_EXPR__ /
-#   __TREE_ICON_W_PX__ / __TREE_ICON_H_PX__
 _TREESVG_JS_TEMPLATE = r"""
 // ========== 単木アイコン（treesvg.js / 有償オプション・WebGL symbol描画） ==========
 (function setupTreeSvg(){
@@ -317,9 +301,6 @@ _TREESVG_JS_TEMPLATE = r"""
 
 
 # ===== 属性検索（ベクタ fgb レイヤの属性値で地物検索）連携 JS テンプレート =====
-# プレースホルダ __FS_LAYERS__ は [{id,name,url,geom,fields:[...]}] の JSON に置換。
-# 検索は flatgeobuf を全件デシリアライズし、指定フィールドの値に対する部分一致で抽出。
-# 該当地物をハイライト表示し、全件が収まるよう fitBounds（単一点は flyTo）する。
 _FEATURE_SEARCH_JS_TEMPLATE = r"""
 // ========== 属性検索（ベクタレイヤの属性値で地物検索） ==========
 (function setupFeatureSearch(){
@@ -1132,9 +1113,7 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         self._log(f"Style applied: {layer.name()} -> {style}")
 
     # ===================== レイヤ単位のスタイル設定 保存/読込 =====================
-    # 1レイヤ分のスタイル設定（self._styles[layer.id()] の dict）をファイルに保存し、
-    # 別の地図作成時に読み込んで初期値（プリセット）として流用するための仕組み。
-    # ファイルは人間が読めるJSON形式（テキストエディタで編集可能）。拡張子は .fgstyle。
+    # 1レイヤ分のスタイル設定（self._styles[layer.id()] の dict）をファイルに保存。
     STYLE_FILE_FORMAT = "forestgeostudio-layer-style"
     STYLE_FILE_VERSION = 1
 
@@ -1230,7 +1209,6 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             return
 
         # 保存形式の検証。本プラグインが保存したラッパー形式なら "style" を取り出す。
-        # 念のため、style dict 単体が保存されたファイルにも対応する。
         if isinstance(payload, dict) and isinstance(payload.get("style"), dict):
             saved_style = payload["style"]
         elif isinstance(payload, dict) and payload.get("geom"):
@@ -1247,7 +1225,6 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         saved_geom = saved_style.get("geom", "")
 
         # ジオメトリ種別が異なる場合は警告し、続行可否をユーザに確認する。
-        # （続行した場合、現在のレイヤ種別に該当する項目だけがプリセットされる）
         if saved_geom and current_geom and saved_geom != current_geom:
             ret = QMessageBox.question(
                 self, "スタイル読込",
@@ -1261,8 +1238,6 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 return
 
         # プリセット適用：保存値で上書きしつつ、レイヤ固有の識別情報は保持する。
-        #   - geom      : レイヤ種別はファイルで変えない
-        #   - tile_url  : ベクタタイルの配信元URLはこのレイヤ実体に紐づくため保持
         new_style = dict(current_style)
         new_style.update(saved_style)
         if current_geom:
@@ -1389,10 +1364,6 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                     geom_type = GEOM_MAP.get(layer.geometryType(), "Point")
 
                     # 大容量データ対応: QgsVectorFileWriter 低レベルAPI でストリーミング書き込み。
-                    # FlatGeobuf は空間インデックスをファイル先頭に持つ構造のため Append 非対応。
-                    # メモリプロバイダに全件 addFeatures してから writeAsVectorFormatV3 する
-                    # 旧方式はバッファ未確定のまま書き出して空ファイルになるケースがあるため、
-                    # create() → addFeature() ループ → flushBuffer() の低レベル API を使う。
                     opts = QgsVectorFileWriter.SaveVectorOptions()
                     opts.driverName = "FlatGeobuf"
                     opts.fileEncoding = "UTF-8"
@@ -1514,6 +1485,7 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 "split_view": self.chkSplitView.isChecked()  if hasattr(self, "chkSplitView") else False,
                 "stats":      self.chkStats.isChecked()      if hasattr(self, "chkStats")     else False,
                 "print":      self.chkPrint.isChecked()      if hasattr(self, "chkPrint")     else False,
+                "zoning":      self.chkZoning.isChecked()      if hasattr(self, "chkZoning")     else False,
                 "roadsim":    self.chkRoadSim.isChecked()   if hasattr(self, "chkRoadSim")  else False,
                 "route":    self.chkRoute.isChecked()  if hasattr(self, "chkRoute")  else False,
                 "cablesim":  self.chkCableSim.isChecked()  if hasattr(self, "chkCableSim")  else False,
@@ -1524,7 +1496,6 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
 
             # ===== オプション ライセンス認証（永続動作モデル）=====
             # 生成時にコードを認証し、HTMLには永続トークンを埋め込む。
-            # ライセンスが切れても、生成済みHTMLはトークンで動作し続ける。
             code1 = self.txtLicenseOpt1.text() if hasattr(self, "txtLicenseOpt1") else ""
             code2 = self.txtLicenseOpt2.text() if hasattr(self, "txtLicenseOpt2") else ""
 
@@ -3285,7 +3256,7 @@ function addExternalTile(){
                 "  }\n"
             ) % _vis
 
-        # ---- TOPEX 風倒リスク（標高タイル・風向別）オプション ----
+        # ---- TOPEX （標高タイル・風向別）オプション ----
         if opts.get("topex", False) and opt1_ok:
             _need_opt1("topex-extension.js")
             micro_init["topex"] = (
@@ -3301,7 +3272,7 @@ function addExternalTile(){
                 "  }\n"
             ) % _vis
 
-        # ---- TWI傾斜量図（標高タイル）オプション ----
+        # ---- TWI（標高タイル）オプション ----
         if opts.get("twi", False) and opt1_ok:
             _need_opt1("twi-extension.js")
             micro_init["twi"] = (
@@ -3606,8 +3577,6 @@ function toggle3DView() {
 """
 
         # ---- 単木SVGアイコン（オプション2 treesvg.js）連携 ----
-        # treesvg_layers が空、またはオプション2が未認証なら一切emitせず、
-        # 従来どおり黒い円のフォールバックを継続する。
         treesvg_script_tag = ""
         treesvg_js = ""
         if treesvg_layers and opt2_ok:
@@ -3625,10 +3594,6 @@ function toggle3DView() {
                 .replace("__TREE_ICON_H_PX__", json.dumps(TREE_SVG_ICON_BASE_PX))
 
         # ---- 属性集計（統計）オプション（外部オプション stats-extension.js）----
-        # popup_layer_ids にはクリック可能なベクタ／VTレイヤのIDが集まっている。
-        # これを選択対象としてブートストラップに渡す。
-        # stats-extension.js が無ければ window.StatsExtension が未定義のままで、
-        # 下記ガードが何も実行しないため地図動作には影響しない（csmap/treesvg と同方式）。
         stats_script_tag = ""
         if opts.get("stats", False) and opt2_ok:
             stats_geojson_ids = [i for i in popup_layer_ids if isinstance(i, str)]
@@ -3662,9 +3627,6 @@ function toggle3DView() {
                 load_js = load_js + stats_init_js
 
         # ---- 印刷レイアウト（オプション2 print-extension.js）----
-        # popup 可能なベクタ/VT レイヤの凡例を選択肢として渡す。
-        # print-extension.js が無ければ window.PrintExtension が未定義のままで、
-        # 下記ガードが何も実行しないため地図動作には影響しない（stats と同方式）。
         if opts.get("print", False) and opt2_ok:
             print_legend = []
             for _ids, _nm, _knd, _lg, _vis in layer_id_groups:
@@ -3688,6 +3650,28 @@ function toggle3DView() {
                 "  }\n"
             ) % json.dumps(print_cfg, ensure_ascii=False)
             load_js = load_js + print_init_js
+            
+        # ---- 森林ゾーニング（オプション2 shinrin-zoning-extension.js）----
+        if opts.get("zoning", False) and opt2_ok:
+            zoning_cfg = {
+                "theme": {"main": theme["main"], "dark": theme["dark"], "text": theme["text"]},
+                # 光田式 地位タイル、建物重心FGBと道路FGB
+                "chiiBase":      "https://forestgeo.info/opendata/chii",
+                "bldgBase":      "https://forestgeo.info/ForestGeoStudio/bldg",
+                "roadTilesBase": "https://forestgeo.info/ForestGeoStudio/route",
+                # 林野庁ベクトルタイル（地図に追加済みのものを参照）
+                "meshSource":       "forest",
+                "meshSourceLayer":  "全国森林資源メッシュ",
+                "rinpanSource":      "shinrinkeikaku",
+                "rinpanSourceLayer": "森林計画対象森林レイヤ",
+            }
+            _need_opt2("shinrin-zoning-extension.js")
+            load_js = load_js + (
+                "\n  if (typeof ShinrinZoningExtension !== 'undefined') {\n"
+                "    try { ShinrinZoningExtension.enable(map, %s); }\n"
+                "    catch(e){ console.warn('[zoning] init failed', e); }\n"
+                "  }\n"
+            ) % json.dumps(zoning_cfg, ensure_ascii=False)
             
         # ---- 林道線形シミュレーション（オプション2 roadsim-extension.js）----
         if opts.get("roadsim", False) and opt2_ok:
@@ -3721,8 +3705,6 @@ function toggle3DView() {
             ) % json.dumps(roadsim_cfg, ensure_ascii=False)
 
         # ---- 架線集材シミュレーション（オプション2 cablesim-extension.js）----
-        # 主索カテナリー／クリアランス・主索安全係数(規定2.7)・必要支柱高・横取り範囲の
-        # 単木集計と採算を概算する。treeLayers は roadsim と同形式で渡す。
         if opts.get("cablesim", False) and opt2_ok:
             cablesim_tree_layers = []
             for l in export_layers:
@@ -3757,9 +3739,6 @@ function toggle3DView() {
             ) % json.dumps(cablesim_cfg, ensure_ascii=False)
 
         # ---- ルート検索（オプション2 route-extension.js）----
-        # 速度優先・距離優先の2経路を検索し、通行不能ポリゴン（描画ツール由来＋
-        # 任意のポリゴンレイヤ）を回避する。タイル本体は素のHTTPで取得し、
-        # 本JSコードのみがjs.php(Bearer)経由で配信される保護対象。
         if opts.get("route", False) and opt2_ok:
           avoid_layers = []
           for l in export_layers:
@@ -3819,9 +3798,6 @@ function toggle3DView() {
           ) % json.dumps(route_cfg, ensure_ascii=False)
 
         # ===== レイヤ重なり順／パネル表示順の最終組み立て =====
-        # 重なり(下→上): ベースマップ → 微地形(段彩→TWI→TOPEX→CIマップ→陰陽図→MPI→CS)
-        #                → QGIS/外部データ → 気象
-        # load_js は先に実行されたものが下層に描画される。
         micro_order = ["colorrelief", "twi", "topex", "cimap", "inyouzu", "mpirrim", "csmap"]
         micro_init_js  = "".join(micro_init.get(k, "")  for k in micro_order)
         micro_panel_js = "".join(micro_panel.get(k, "") for k in micro_order)
@@ -3873,12 +3849,6 @@ function toggle3DView() {
                 )
 
         # ---- 保護JSローダー（認証付き fetch → <script>注入）----
-        # <script src="..."> を使わず、Authorization ヘッダー付きで js.php から
-        # コードを取得し、<script> 要素に流し込んで実行する。
-        #   - HTMLソースを見ても JSコードは現れない（URLとトークンのみ）
-        #   - トークン無しで js.php を直叩きしても 403（直リンク不可）
-        #   - textContent 注入によりグローバルスコープで実行（src 読込と等価）
-        #   - window.__optReady: 全保護JSの注入完了を表す Promise（初期化の待ち合わせ用）
         protected_specs = []
         for fn in needed_opt1:
             protected_specs.append({"opt": 1, "file": fn, "token": token_opt1})
@@ -4102,7 +4072,7 @@ const map = new maplibregl.Map({{
   }},
   center: [{cx:.6f}, {cy:.6f}],
   zoom: 10,
-  maxZoom: 18,
+  maxZoom: 20,
   attributionControl: false
 }});
 
