@@ -746,6 +746,24 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
        </layout>
       </item>
       <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRowSentinelChange">
+        <item>
+         <widget class="QCheckBox" name="chkSentinelChange">
+          <property name="text">
+           <string>Sentinel-2衛星画像解析を実行（EarthSearch byElement84 API使用）／※同上</string>
+          </property>
+          <property name="checked"><bool>false</bool></property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerSentinelChange">
+          <property name="orientation"><enum>Qt::Horizontal</enum></property>
+          <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
        <layout class="QHBoxLayout" name="layoutBasemapRow7">
         <item>
          <widget class="QCheckBox" name="chkWeather">
@@ -2085,7 +2103,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
       <item row="0" column="0">
        <widget class="QLabel" name="lblLicenseOpt1">
         <property name="text">
-         <string>OPT1（微地形表現図など地形表現、気象アニメーション）</string>
+         <string>OPT1（微地形表現図など地形表現、衛星画像解析、気象ライブビュー）</string>
         </property>
        </widget>
       </item>
