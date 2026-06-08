@@ -40,7 +40,7 @@ LICENSE_SERVER_BASE = "https://forestgeo.info/ForestGeoStudio"
 # 各オプションが必要とする保護JS
 #   オプション1: 微地形表現図など
 #   オプション2: 属性集計など
-OPTION1_FEATURE_KEYS = ("csmap", "inyouzu", "mpirrim", "cimap", "colorrelief", "twi", "topex", "weather", "kikikuru")
+OPTION1_FEATURE_KEYS = ("csmap", "inyouzu", "mpirrim", "cimap", "colorrelief", "twi", "topex", "weather", "kikikuru", "sentinel")
 # =====================================================================
 
 THEMES = {
@@ -1468,6 +1468,7 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 "topex":      self.chkTopex.isChecked()      if hasattr(self, "chkTopex")     else False,
                 "weather":    self.chkWeather.isChecked()    if hasattr(self, "chkWeather")   else False,
                 "kikikuru":     self.chkKikikuru.isChecked()    if hasattr(self, "chkKikikuru")    else False,
+                "sentinel":   self.chkSentinelChange.isChecked() if hasattr(self, "chkSentinelChange")  else False,
                 # 各微地形・気象レイヤの「表示」初期状態（出力ONかつ表示OFFなら初期非表示）
                 "csmap_vis":       self.chkCsmapVis.isChecked()       if hasattr(self, "chkCsmapVis")       else True,
                 "inyouzu_vis":     self.chkInyouzuVis.isChecked()     if hasattr(self, "chkInyouzuVis")     else True,
@@ -1986,6 +1987,8 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         panel_basemap_js = ""     # ベースマップのパネルトグル（パネル最上段＝描画最下層）
         micro_init = {}           # 微地形系 init JS（キー: 機能名）
         micro_panel = {}          # 微地形系 パネルトグル JS（キー: 機能名）
+        sentinel_init_js = ""     # Sentinel-2 変化解析 init JS（オプション1）
+        sentinel_panel_js = ""    # 未使用（Sentinelは左ツールボタンで操作）       
         kikikuru_init_js = ""     # キキクル init JS
         kikikuru_panel_js = ""    # キキクル パネルトグル
         weather_init_js = ""      # 気象 init JS（描画最上層＝最後に addLayer）
@@ -3289,6 +3292,22 @@ function addExternalTile(){
                 "  }\n"
             ) % _vis
 
+        # ---- Sentinel-2 変化解析（Earth Search STAC + COG）オプション ----
+        # オプション1の保護JSとして読み込むが、WEB側UIはオプション2と同じく
+        # 左コントロールのツールボタン + サブパネルで操作する。
+        if opts.get("sentinel", False) and opt1_ok:
+            _need_opt1("sentinel-change.js")
+            sentinel_cfg = {
+                "theme": {"main": theme["main"], "dark": theme["dark"]}
+            }
+            sentinel_init_js = (
+                "\n  // Sentinel-2 変化解析（オプション1）: sentinel-change.js があれば有効化\n"
+                "  if (typeof SentinelChangeExtension !== 'undefined') {\n"
+                "    try { SentinelChangeExtension.enable(map, %s); }\n"
+                "    catch(e){ console.warn('[sentinel] init failed', e); }\n"
+                "  }\n"
+            ) % json.dumps(sentinel_cfg, ensure_ascii=False)    
+
         # ---- 3Dビュー（国土地理院DEM5A）オプション ----
         terrain_source_js = ""
         terrain_btn_html = ""
@@ -3803,7 +3822,7 @@ function toggle3DView() {
         micro_panel_js = "".join(micro_panel.get(k, "") for k in micro_order)
         # この時点の load_js は QGIS レイヤ＋オプション2 操作系を含む。
         # 先頭へ 3D sky → 微地形群、末尾へ 気象 を連結し最終的な描画順を確定する。
-        load_js = terrain_init_js + micro_init_js + load_js + kikikuru_init_js + weather_init_js
+        load_js = terrain_init_js + micro_init_js + sentinel_init_js + load_js + kikikuru_init_js + weather_init_js
 
         # パネル: 上段＝描画下層。ベースマップ → 微地形 → QGIS → 気象 の順に addToggle。
         for _bm_id, _bm_name, _bm_vis in basemap_panel_entries:
