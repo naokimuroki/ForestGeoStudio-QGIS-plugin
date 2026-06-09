@@ -96,6 +96,87 @@ BASEMAPS = {
 }
 
 
+# 出典（自動生成）用のラベル定義
+#   ・国土地理院のベースマップ名 → 出典に載せる項目名
+GSI_BASEMAP_LABEL = {
+    "国土地理院・標準地図":     "標準地図",
+    "国土地理院・淡色地図":     "淡色地図",
+    "国土地理院・全国最新写真": "全国最新写真",
+}
+# 国土地理院の項目表示順（重複排除後にこの順へ正規化）
+GSI_ITEM_ORDER = ["標準地図", "淡色地図", "全国最新写真", "標高タイル"]
+# 標高タイルを使う微地形表現図のオプションキー（すべて「国土地理院/標高タイル」に集約）
+MICRO_RELIEF_OPT_KEYS = ("csmap", "inyouzu", "mpirrim", "cimap", "colorrelief", "twi", "topex")
+
+
+def build_data_attribution(basemap_name, basemap_name2, opts):
+    """選択されたベースマップ・データレイヤから出典文字列を自動生成する。
+
+    形式 :  '提供元/項目1、項目2 ｜ 提供元/項目'
+      - 提供元と項目は「/」で区切る
+      - 同一提供元内の複数項目は「、」で連結する
+      - 提供元グループ同士は「 ｜ 」で連結する
+
+    集約ルール:
+      - 国土地理院 : 使用したベースマップ（標準地図/淡色地図/全国最新写真）に加え、
+                     標高タイルを使う微地形表現図を使っていれば「標高タイル」を1つだけ追加
+      - osm.org    : OpenStreetMap
+      - Earth Search by Element 84 : Sentinel-2 API（衛星変化解析）
+      - 気象庁     : 気象（ナウキャスト＋台風情報＝1セット）／キキクル＝1セット
+      - Open-Meteo : weather API（気象オプションと同時に使用）
+    """
+    gsi = []          # 国土地理院の項目
+    jma = []          # 気象庁の項目
+    osm = False       # osm.org
+    es84 = False      # Earth Search by Element 84
+    openmeteo = False # Open-Meteo
+
+    def _add(lst, item):
+        if item not in lst:
+            lst.append(item)
+
+    # --- ベースマップ（種類1・種類2）---
+    for bm in (basemap_name, basemap_name2):
+        if not bm:
+            continue
+        if bm in GSI_BASEMAP_LABEL:
+            _add(gsi, GSI_BASEMAP_LABEL[bm])
+        elif bm == "OpenStreetMap":
+            osm = True
+
+    # --- 標高タイルを使う微地形表現図（すべて 国土地理院/標高タイル に集約）---
+    if any(opts.get(k) for k in MICRO_RELIEF_OPT_KEYS):
+        _add(gsi, "標高タイル")
+
+    # --- 気象庁・Open-Meteo ---
+    if opts.get("weather"):
+        _add(jma, "ナウキャスト")
+        _add(jma, "台風情報")
+        openmeteo = True
+    if opts.get("kikikuru"):
+        _add(jma, "キキクル")
+
+    # --- Sentinel-2（Earth Search by Element 84）---
+    if opts.get("sentinel"):
+        es84 = True
+
+    # 提供元グループを既定順で組み立て
+    groups = []
+    if gsi:
+        ordered = [x for x in GSI_ITEM_ORDER if x in gsi]
+        groups.append("国土地理院/" + "、".join(ordered))
+    if osm:
+        groups.append("osm.org/OpenStreetMap")
+    if es84:
+        groups.append("Earth Search by Element 84/Sentinel-2 API")
+    if jma:
+        groups.append("気象庁/" + "、".join(jma))
+    if openmeteo:
+        groups.append("Open-Meteo/weather API")
+
+    return " ｜ ".join(groups)
+
+
 GEOM_MAP = {
     QgsWkbTypes.PointGeometry: "Point",
     QgsWkbTypes.LineGeometry: "LineString",
@@ -1930,6 +2011,10 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         cx = (xmin + xmax) / 2
         cy = (ymin + ymax) / 2
 
+        # 出典（自動生成）: 選択ベースマップ＋データレイヤから提供元別に組み立てる。
+        # 手入力の出典(source)とは独立して別欄に表示する。
+        auto_source = build_data_attribution(basemap_name, basemap_name2, opts)
+
         # ----- オプション ライセンス（保護JSローダー用）-----
         server_base = opts.get("_server_base", LICENSE_SERVER_BASE)
         token_opt1 = opts.get("_token_opt1", "") or ""
@@ -2284,6 +2369,17 @@ map.on("mousemove", e => {
   document.getElementById("coord-cell").textContent =
     "経度: " + e.lngLat.lng.toFixed(5) + "  緯度: " + e.lngLat.lat.toFixed(5);
 });""" if opts["coord"] else ""
+
+        # 現在ズームレベルの表示（緯度経度の上・地図との間の欄）。常時表示。
+        zoom_js = """
+function _updateZoomCell(){
+  var el = document.getElementById("zoom-cell");
+  if(!el) return;
+  el.textContent = "ズームレベル：" + (Math.round(map.getZoom() * 10) / 10).toFixed(1);
+}
+map.on("zoom", _updateZoomCell);
+map.on("load", _updateZoomCell);
+_updateZoomCell();"""
 
         addr_html = """
 <button class="ctrl-btn" id="btn-addr" onclick="toggleAddr()">📒 住所検索</button>
@@ -3903,6 +3999,11 @@ function toggle3DView() {
 
         layer_panel_html = '<div id="layer-panel"><h2>レイヤ</h2><div id="layer-list"></div></div>' if opts["layer_panel"] else ""
         coord_cell = '<div class="status-cell" id="coord-cell">マウス座標</div>' if opts["coord"] else ""
+        # 自動生成した出典（ベースマップ＋データレイヤ）。手入力の出典とは別欄に表示。
+        basemap_cell_html = (
+            f'<div class="status-cell" id="basemap-cell" title="自動生成された出典">{auto_source}</div>'
+            if auto_source else ""
+        )
 
         # 各種機能ボタンをグループ化（レイヤパネルON/OFFは常駐、住所検索以下をまとめる）
         grouped_buttons = [
@@ -3998,9 +4099,13 @@ html,body{{height:100%;font-family:var(--font);font-size:13px}}
 #feature-search-bar button{{background:var(--green);color:var(--text);border:none;border-radius:var(--r);padding:3px 12px;cursor:pointer;font-size:12px;white-space:nowrap}}
 #feature-search-bar button:hover{{background:var(--green)}}
 #feature-search-bar #fs-status{{opacity:.9;white-space:nowrap}}
-#status-bar{{height:30px;background:var(--green);display:flex;align-items:center;padding:0 6px;flex-shrink:0;gap:6px;z-index:10}}
+#status-bar{{min-height:30px;background:var(--green);display:flex;align-items:center;padding:4px 6px;flex-shrink:0;gap:6px;z-index:10}}
 .status-cell{{background:var(--green-dark);color:var(--text);border-radius:var(--r);padding:3px 12px;font-size:11px;white-space:nowrap}}
-#attrib-cell{{flex:1;text-align:center}}
+#source-group{{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}}
+#meter-group{{flex-shrink:0;display:flex;flex-direction:column;gap:3px}}
+#attrib-cell{{text-align:left;white-space:normal;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3}}
+#basemap-cell{{text-align:left;white-space:normal;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35;font-size:10.5px;opacity:.92}}
+#zoom-cell{{min-width:200px;text-align:right}}
 #coord-cell{{min-width:200px;text-align:right}}
 #credit-bar{{height:24px;background:var(--green-dark);color:var(--text);display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font-size:11px;flex-shrink:0;z-index:10}}
 .maplibregl-popup-content{{font-family:var(--font);font-size:12px;padding:8px 12px;border-radius:4px;max-width:300px;max-height:240px;overflow-y:auto}}
@@ -4029,6 +4134,10 @@ html,body{{height:100%;font-family:var(--font);font-size:13px}}
 
   #coord-cell{{
     display: none;
+  }}
+
+  #zoom-cell{{
+    min-width: auto;
   }}
 
   .ctrl-btn{{
@@ -4067,8 +4176,14 @@ html,body{{height:100%;font-family:var(--font);font-size:13px}}
   {feature_search_html}
   <div id="status-bar">
     <div class="status-cell" id="scale-cell"></div>
-    <div class="status-cell" id="attrib-cell">{source or "出典"}</div>
-    {coord_cell}
+    <div id="source-group">
+      <div class="status-cell" id="attrib-cell">{source or "出典"}</div>
+      {basemap_cell_html}
+    </div>
+    <div id="meter-group">
+      <div class="status-cell" id="zoom-cell">ズームレベル：--</div>
+      {coord_cell}
+    </div>
   </div>
   <div id="credit-bar">Powered by&nbsp;
    <a href="https://github.com/naokimuroki" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline;">
@@ -4361,6 +4476,7 @@ map.on("load", async () => {{
 
 {popup_js}
 {coord_js}
+{zoom_js}
 {addr_js}
 {gps_js}
 {share_js}
