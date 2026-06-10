@@ -500,7 +500,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkCsmap">
           <property name="text">
-           <string>国土地理院・標高タイルからCS立体図を描写/※OPT1必要</string>
+           <string>国土地理院・標高タイルからCS立体図を描写/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -537,7 +537,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkInyouzu">
           <property name="text">
-           <string>国土地理院・標高タイルから陰陽図（エアロトヨタ社考案）を描写/※同上</string>
+           <string>国土地理院・標高タイルから陰陽図（エアロトヨタ社考案）を描写/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -574,7 +574,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkMpiRrim">
           <property name="text">
-           <string>国土地理院・標高タイルからMPI赤色立体地図（アジア航測ら考案）を描写/※同上</string>
+           <string>国土地理院・標高タイルからMPI赤色立体地図（アジア航測ら考案）を描写/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -611,7 +611,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkCimap">
           <property name="text">
-           <string>国土地理院・標高タイルからCIマップ（中央開発考案）を描写/※同上</string>
+           <string>国土地理院・標高タイルからCIマップ（中央開発考案）を描写/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -648,7 +648,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkColorrelief">
           <property name="text">
-           <string>国土地理院・標高タイルから段彩陰影図を描写/※同上</string>
+           <string>国土地理院・標高タイルから段彩陰影図を描写/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -685,7 +685,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkTwi">
           <property name="text">
-           <string>国土地理院・標高タイルからTWI（地形湿潤指数）入り傾斜量図を描写/※同上</string>
+           <string>国土地理院・標高タイルからTWI（地形湿潤指数）入り傾斜量図を描写/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -722,7 +722,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkTopex">
           <property name="text">
-           <string>国土地理院・標高タイルからTOPEX（風向別の地形露出指数）を描写／※同上</string>
+           <string>国土地理院・標高タイルからTOPEX（風向別の地形露出指数）を描写／OPT1</string>
           </property>
           <property name="checked"><bool>false</bool></property>
          </widget>
@@ -750,7 +750,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkSentinelChange">
           <property name="text">
-           <string>Sentinel-2衛星画像解析を実行（EarthSearch byElement84 API使用）／※同上</string>
+           <string>Sentinel-2衛星画像解析を実行（Earth Search API）／OPT1</string>
           </property>
           <property name="checked"><bool>false</bool></property>
          </widget>
@@ -768,7 +768,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkWeather">
           <property name="text">
-           <string>気象庁ナウキャスト（降水量）/Open-Meteo（風向・風速）をアニメーション表示/※同上</string>
+           <string>気象庁ナウキャスト（降水量）/Open-Meteo（風向・風速）をアニメーション表示/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -805,7 +805,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkKikikuru">
           <property name="text">
-           <string>気象庁キキクル（土砂・浸水・洪水の危険度分布）をリアルタイム表示/※同上</string>
+           <string>気象庁キキクル（土砂・浸水・洪水の危険度分布）をリアルタイム表示/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -1775,7 +1775,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
    <item>
     <widget class="QGroupBox" name="groupOption">
      <property name="title">
-      <string>表示オプション</string>
+      <string>機能オプション</string>
      </property>
      <layout class="QVBoxLayout" name="layoutOption">
       <item>
@@ -1996,7 +1996,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkStats">
           <property name="text">
-           <string>属性値集計・分析※OPT2</string>
+           <string>属性集計・分析/OPT2</string>
           </property>
           <property name="toolTip">
            <string>選択フィーチャーの属性を集計し、統計表・グラフを表示します。※オプションパックをお持ちの方のみ使用できます。</string>
@@ -2009,7 +2009,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
          <item>
          <widget class="QCheckBox" name="chkPrint">
           <property name="text">
-           <string>地図印刷※OPT2</string>
+           <string>地図印刷/OPT2</string>
           </property>
           <property name="toolTip">
            <string>現在の地図表示を所定のA4横テンプレートにレイアウトして印刷します。※オプションパックをお持ちの方のみ使用できます。</string>
@@ -2021,29 +2021,36 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         </item>
         <item>
          <widget class="QCheckBox" name="chkZoning">
-          <property name="text"><string>ゾーニング※OPT2</string></property>
+          <property name="text"><string>ゾーニング/OPT2</string></property>
           <property name="toolTip"><string>標高タイル、林野庁オープンデータ等を用いて「もりぞん」ゾーニングをシミュレートできます。※オプションパックをお持ちの方のみ使用できます。</string></property>
           <property name="checked"><bool>false</bool></property>
          </widget>
         </item>
         <item>
          <widget class="QCheckBox" name="chkRoadSim">
-          <property name="text"><string>路網設計シミュレート※OPT2</string></property>
+          <property name="text"><string>路網シミュレート/OPT2</string></property>
           <property name="toolTip"><string>標高タイルを用いて勾配制約付きの林道・林業専用道・森林作業道の線形を自動探索し、縦断図検証・バッファ単木集計・GeoJSON出力を行います。※オプションパックをお持ちの方のみ使用できます。</string></property>
           <property name="checked"><bool>false</bool></property>
          </widget>
         </item>
         <item>
           <widget class="QCheckBox" name="chkRoute">
-          <property name="text"><string>ルート検索※OPT2</string></property>
+          <property name="text"><string>ルート検索/OPT2</string></property>
           <property name="toolTip"><string>国土数値情報・道路データを用いて、起点・終点から速度優先と距離優先の2経路を検索します。通行不能ポリゴンがあれば回避します。※オプションパックをお持ちの方のみ使用できます。</string></property>
           <property name="checked"><bool>false</bool></property>
           </widget>
         </item>
         <item>
           <widget class="QCheckBox" name="chkCableSim">
-          <property name="text"><string>架線設計シミュレート※OPT2</string></property>
-          <property name="toolTip"><string>標高タイルを用いて主索（架線）の通り・クリアランス・主索安全係数（規定2.7）を概算し、必要支柱高や中間サポートの要否、横取り範囲内の単木集計・採算（材積×単価）を表示します。エンドレスタイラー／タワーヤーダに対応。※オプションパックをお持ちの方のみ使用できます。</string></property>
+          <property name="text"><string>架線シミュレート/OPT2</string></property>
+          <property name="toolTip"><string>標高タイルを用いて主索（架線）の通り・クリアランス・主索安全係数を概算し、必要支柱高や中間サポートの要否、横取り範囲内の単木集計を表示します。※オプションパックをお持ちの方のみ使用できます。</string></property>
+          <property name="checked"><bool>false</bool></property>
+          </widget>
+        </item>
+        <item>
+          <widget class="QCheckBox" name="chkDchm">
+          <property name="text"><string>単木抽出/OPT2</string></property>
+          <property name="toolTip"><string>樹冠高タイルを用いて樹頂点・樹冠を抽出。※オプションパックをお持ちの方のみ使用できます。</string></property>
           <property name="checked"><bool>false</bool></property>
           </widget>
         </item>
