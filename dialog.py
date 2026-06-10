@@ -1568,6 +1568,7 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 "stats":      self.chkStats.isChecked()      if hasattr(self, "chkStats")     else False,
                 "print":      self.chkPrint.isChecked()      if hasattr(self, "chkPrint")     else False,
                 "zoning":      self.chkZoning.isChecked()      if hasattr(self, "chkZoning")     else False,
+                "dchm":      self.chkDchm.isChecked()      if hasattr(self, "chkDchm")     else False,
                 "roadsim":    self.chkRoadSim.isChecked()   if hasattr(self, "chkRoadSim")  else False,
                 "route":    self.chkRoute.isChecked()  if hasattr(self, "chkRoute")  else False,
                 "cablesim":  self.chkCableSim.isChecked()  if hasattr(self, "chkCableSim")  else False,
@@ -1589,7 +1590,9 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                  and l.get("style", {}).get("vt-tree-svg-enabled"))
                 for l in export_layers
             )
-            opt2_used = bool(opts_ui.get("stats")) or opt2_treesvg_used or bool(opts_ui.get("roadsim") or bool(opts_ui.get("route")) or bool(opts_ui.get("cablesim")) ) or bool(opts_ui.get("print"))
+            opt2_used = (bool(opts_ui.get("stats")) or opt2_treesvg_used
+                or bool(opts_ui.get("roadsim")) or bool(opts_ui.get("route")) or bool(opts_ui.get("cablesim"))
+                or bool(opts_ui.get("print")) or bool(opts_ui.get("zoning")) or bool(opts_ui.get("dchm")))
 
             token1 = self._fetch_license_token(1, code1) if opt1_used else ""
             token2 = self._fetch_license_token(2, code2) if opt2_used else ""
@@ -3787,6 +3790,28 @@ function toggle3DView() {
                 "    catch(e){ console.warn('[zoning] init failed', e); }\n"
                 "  }\n"
             ) % json.dumps(zoning_cfg, ensure_ascii=False)
+            
+        # ---- DCHM 単木解析（オプション2 dchm-tree-extension.js）----
+        if opts.get("dchm", False) and opt2_ok:
+            dchm_cfg = {
+                "theme": {"main": theme["main"], "dark": theme["dark"], "text": theme["text"]},
+                # 林野庁 DCHM（能登2024, GSI標高PNG, z12-18, 0.5m）を既定に
+                "dchmUrl":  "https://forestgeo.info/opendata/17_ishikawa/noto/dchm_2024/{z}/{x}/{y}.png",
+                "dchmEnc":  "gsi",
+                "dchmMaxZ": 18,
+                # DSM−DEM ルートの既定 DEM（DEM1A→DEM5A フォールバック）
+                "dem1aUrl": "https://cyberjapandata.gsi.go.jp/xyz/dem1a_png/{z}/{x}/{y}.png",
+                "dem5aUrl": "https://cyberjapandata.gsi.go.jp/xyz/dem5a_png/{z}/{x}/{y}.png",
+                "dem1aMaxZ": 17, "dem5aMaxZ": 15,
+                "drawSourceId": "_draw-src",
+            }
+            _need_opt2("dchm-tree-extension.js")
+            load_js = load_js + (
+                "\n  if (typeof DchmTreeExtension !== 'undefined') {\n"
+                "    try { DchmTreeExtension.enable(map, %s); }\n"
+                "    catch(e){ console.warn('[dchm] init failed', e); }\n"
+                "  }\n"
+            ) % json.dumps(dchm_cfg, ensure_ascii=False)
             
         # ---- 林道線形シミュレーション（オプション2 roadsim-extension.js）----
         if opts.get("roadsim", False) and opt2_ok:
