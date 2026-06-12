@@ -209,6 +209,10 @@ TREE_SVG_SPECIES = [
     ("その他L", "otherL"),
 ]
 TREE_SVG_DEFAULT_SLUG = "otherL"
+# 「樹種」フィールドが無い／未知の値のときに代用するスラッグ。
+# 要件: 樹種が無ければ「その他N」を代用する（針葉樹寄りの汎用アイコン）。
+# 別の代用にしたい場合はここを変更する（例: "otherL"）。
+TREE_SVG_NO_SPECIES_SLUG = "otherN"
 TREE_SVG_ICON_PREFIX = "treeicon_"
 
 # 樹冠長率による形状3段階。
@@ -243,6 +247,7 @@ _TREESVG_JS_TEMPLATE = r"""
   const ICON_SIZE_EXPR  = __TREE_ICON_SIZE_EXPR__;
   const ICON_W = __TREE_ICON_W_PX__;          // アイコン基準幅(px)
   const ICON_H = __TREE_ICON_H_PX__;          // アイコン基準高(px)
+  const HEIGHT_FIELD = __TREE_HEIGHT_FIELD__; // 樹木判定に使う「樹高」属性フィールド名
   const PR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 
   let want3D = false;     // toggle3DView から渡される希望状態
@@ -292,27 +297,34 @@ _TREESVG_JS_TEMPLATE = r"""
     }
   }
 
+  // 1レイヤ分の symbol レイヤを追加する。
+  //   - VT は source-layer 必須／GeoJSON（fgb・外部読込）は source-layer なし。
+  //   - 混在ジオメトリ（外部読込）は point_filter で Point だけに限定する。
+  function addOneSymbolLayer(L){
+    if (map.getLayer(L.symbol_id)) return;
+    if (!map.getSource(L.source)) return;
+    const def = {
+      id: L.symbol_id,
+      type: 'symbol',
+      source: L.source,
+      layout: {
+        'icon-image': ICON_IMAGE_EXPR,
+        'icon-size': ICON_SIZE_EXPR,
+        'icon-anchor': 'bottom',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'icon-pitch-alignment': 'viewport',   // 地形上に直立（ビルボード）
+        'icon-rotation-alignment': 'viewport',
+        'visibility': 'none'                   // 初期は非表示（2D = 円表示）
+      }
+    };
+    if (L.source_layer) def['source-layer'] = L.source_layer;  // VT のみ付与
+    if (L.point_filter) def.filter = L.point_filter;           // 外部読込の Point 抽出
+    map.addLayer(def);
+  }
+
   function addSymbolLayers(){
-    TREE_LAYERS.forEach(function(L){
-      if (map.getLayer(L.symbol_id)) return;
-      if (!map.getSource(L.source)) return;
-      map.addLayer({
-        id: L.symbol_id,
-        type: 'symbol',
-        source: L.source,
-        'source-layer': L.source_layer,
-        layout: {
-          'icon-image': ICON_IMAGE_EXPR,
-          'icon-size': ICON_SIZE_EXPR,
-          'icon-anchor': 'bottom',
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-          'icon-pitch-alignment': 'viewport',   // 地形上に直立（ビルボード）
-          'icon-rotation-alignment': 'viewport',
-          'visibility': 'none'                   // 初期は非表示（2D = 円表示）
-        }
-      });
-    });
+    TREE_LAYERS.forEach(addOneSymbolLayer);
   }
 
   function setCircleHidden(L, hidden){
@@ -368,6 +380,59 @@ _TREESVG_JS_TEMPLATE = r"""
   // レイヤパネルのチェック切替後に呼ばれ、現在の状態を再反映する。
   // （3D表示中にレイヤを ON/OFF したとき、円だけでなく symbol も追従させるため）
   window.__treeSvgReapply = function(){ applyMode(); };
+
+  // ===== 実行時のツリーレイヤ登録（レイヤパネルの fgb・外部データ読込） =====
+  // GeoJSON ソースの Point レイヤに「樹高」属性があれば、3D で樹木アイコン化する。
+  // VT のように生成時には確定できないため、地物を検査して動的に登録する。
+  function _featsHaveHeight(feats){
+    for (let i = 0; i < feats.length && i < 500; i++){
+      const p = feats[i] && feats[i].properties;
+      if (p && p[HEIGHT_FIELD] != null && p[HEIGHT_FIELD] !== '') return true;
+    }
+    return false;
+  }
+  function _alreadyRegistered(symbolId){
+    return TREE_LAYERS.some(function(L){ return L.symbol_id === symbolId; });
+  }
+
+  // 低レベル登録: TREE_LAYERS へ追加し、init 済みなら即 symbol を作って状態反映。
+  // （未 init のときは push のみ。init 時の addSymbolLayers が一括で拾う）
+  window.__treeSvgRegisterLayer = function(L){
+    if (!L || !L.symbol_id || _alreadyRegistered(L.symbol_id)) return;
+    TREE_LAYERS.push(L);
+    if (treeReady) addOneSymbolLayer(L);
+    applyMode();
+  };
+
+  // GeoJSON（fgb・外部読込）レイヤを検査し、樹高属性があれば登録する。
+  //   spec: { circle_id, symbol_id, source, point_filter?, features? }
+  //   - features を渡せばそのサンプルで即判定（外部読込は取り込み全件を渡す）。
+  //   - features 無しのときは source を走査し、未レンダリングなら 'idle' で数回リトライ。
+  window.__treeSvgConsiderGeojsonLayer = function(spec){
+    if (!spec || !spec.source || !spec.symbol_id) return;
+    if (_alreadyRegistered(spec.symbol_id)) return;
+    const L = {
+      circle_id: spec.circle_id || null,
+      symbol_id: spec.symbol_id,
+      source: spec.source,
+      source_layer: null,                       // GeoJSON なので source-layer は無し
+      point_filter: spec.point_filter || null
+    };
+    // 1) サンプル地物が渡された場合（外部読込）は即判定
+    if (spec.features && spec.features.length){
+      if (_featsHaveHeight(spec.features)) window.__treeSvgRegisterLayer(L);
+      return;
+    }
+    // 2) ソース走査で判定（fgb）。読込中で空なら idle で最大5回リトライ。
+    let tries = 0;
+    (function check(){
+      if (_alreadyRegistered(spec.symbol_id)) return;
+      let feats = [];
+      try { feats = map.querySourceFeatures(spec.source) || []; } catch(e){ feats = []; }
+      if (_featsHaveHeight(feats)){ window.__treeSvgRegisterLayer(L); return; }
+      if (++tries < 5) map.once('idle', check);
+    })();
+  };
 
   // 初期化は本体の map "load" ハンドラから呼ばれる
   // （保護JS treesvg.js の注入完了後・QGISレイヤのソース追加後に実行するため）。
@@ -492,11 +557,82 @@ _FEATURE_SEARCH_JS_TEMPLATE = r"""
     return feats;
   }
 
+  // ----- 数値フィールド向け 不等号・範囲検索のためのヘルパ -----
+  // 全角の英数記号・空白を半角へ正規化し、日本語の不等号(≧≦≠＝)や波ダッシュ(〜)も標準化する。
+  function _fsNormalize(str){
+    return String(str)
+      .replace(/[！-～]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); })
+      .replace(/　/g, " ")
+      .replace(/[〜～]/g, "~")
+      .replace(/[≧≥]/g, ">=").replace(/[≦≤]/g, "<=")
+      .replace(/≠/g, "!=").replace(/＝/g, "=");
+  }
+  // 入力を「比較条件」として解釈。該当しなければ null（＝従来の部分一致にフォールバック）。
+  //   単側  : >  >=  <  <=  =(==)  !=(<>)            例: ">=100" "< 50" "=12.5" "!=0"
+  //   単側(和): 以上 / 以下 / 未満 / 超(超過)          例: "100以上" "50未満" "3超"
+  //   範囲  : A~B / A..B（両端含む）                  例: "100~200" "0..5"
+  //   範囲(和): A以上B以下 / A以上B未満                例: "100以上200以下" "0以上5未満"
+  function parseNumericQuery(raw){
+    const s = _fsNormalize(raw).trim();
+    const NUM = "(-?\\d+(?:\\.\\d+)?)";
+    let m;
+
+    // 範囲（日本語）: A以上B以下 / A以上B未満
+    m = s.match(new RegExp("^" + NUM + "\\s*以上\\s*" + NUM + "\\s*(以下|未満)$"));
+    if(m){
+      return { op:"range", lo:parseFloat(m[1]), hi:parseFloat(m[2]),
+               loInc:true, hiInc:(m[3] === "以下") };
+    }
+    // 範囲（記号）: A~B / A..B（両端含む）
+    m = s.match(new RegExp("^" + NUM + "\\s*(?:~|\\.\\.)\\s*" + NUM + "$"));
+    if(m){
+      let lo = parseFloat(m[1]), hi = parseFloat(m[2]);
+      if(lo > hi){ const t = lo; lo = hi; hi = t; }   // 大小が逆でも許容
+      return { op:"range", lo:lo, hi:hi, loInc:true, hiInc:true };
+    }
+    // 単側（日本語）: 以上 / 以下 / 未満 / 超(超過)
+    m = s.match(new RegExp("^" + NUM + "\\s*(以上|以下|未満|超過|超)$"));
+    if(m){
+      const map = { "以上":">=", "以下":"<=", "未満":"<", "超":">", "超過":">" };
+      return { op: map[m[2]], num: parseFloat(m[1]) };
+    }
+    // 単側（記号）: >=100 など
+    m = s.match(new RegExp("^(>=|<=|==|!=|<>|>|<|=)\\s*" + NUM + "$"));
+    if(m){
+      let op = m[1];
+      if(op === "==") op = "=";
+      if(op === "<>") op = "!=";
+      return { op: op, num: parseFloat(m[2]) };
+    }
+    return null;
+  }
+  // 地物の属性値 v が比較条件 q を満たすか。v を数値化できなければ false（＝マッチしない）。
+  function numericMatch(v, q){
+    const n = (typeof v === "number") ? v : parseFloat(_fsNormalize(v));
+    if(!isFinite(n)) return false;
+    if(q.op === "range"){
+      const okLo = q.loInc ? (n >= q.lo) : (n > q.lo);
+      const okHi = q.hiInc ? (n <= q.hi) : (n < q.hi);
+      return okLo && okHi;
+    }
+    switch(q.op){
+      case ">":  return n >  q.num;
+      case ">=": return n >= q.num;
+      case "<":  return n <  q.num;
+      case "<=": return n <= q.num;
+      case "=":  return n === q.num;
+      case "!=": return n !== q.num;
+    }
+    return false;
+  }
+
   window.runFeatureSearch = async function(){
     const l = FS_LAYERS[Number(layerSel.value) || 0];
     const field = fieldSel.value;
     const kw = (input.value || "").trim();
     if(!l || !field || !kw){ return; }
+    // 入力が比較式（例: ">=100"）なら数値検索、それ以外は従来どおり部分一致。
+    const numQ = parseNumericQuery(kw);
     if(statusEl) statusEl.textContent = "検索中…";
 
     const matches = [];
@@ -522,15 +658,15 @@ _FEATURE_SEARCH_JS_TEMPLATE = r"""
 
     for(const f of feats){
       const v = f.properties ? f.properties[field] : undefined;
-      if(v != null && String(v).indexOf(kw) !== -1){
-        matches.push(f); expand(f.geometry);
-      }
+      if(v == null) continue;
+      const hit = numQ ? numericMatch(v, numQ) : (String(v).indexOf(kw) !== -1);
+      if(hit){ matches.push(f); expand(f.geometry); }
     }
 
     if(!matches.length){
       if(map.getSource("_fsearch-src"))
         map.getSource("_fsearch-src").setData({ type:"FeatureCollection", features:[] });
-      if(statusEl) statusEl.textContent = "該当なし（" + feats.length + "件中）";
+      if(statusEl) statusEl.textContent = (numQ ? "条件に該当なし" : "該当なし") + "（" + feats.length + "件中）";
       return;
     }
 
@@ -544,7 +680,7 @@ _FEATURE_SEARCH_JS_TEMPLATE = r"""
         map.fitBounds([[minX, minY],[maxX, maxY]], { padding: 60, maxZoom: 17 });
       }
     }
-    if(statusEl) statusEl.textContent = matches.length + "件ヒット";
+    if(statusEl) statusEl.textContent = matches.length + "件ヒット" + (numQ ? "（数値条件）" : "");
   };
 })();
 """
@@ -1801,7 +1937,7 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         # 半径(m) = to-number(樹高, default) * 係数。Nodata/非数値でも default にフォールバック
         radius_m = [
             "*",
-            ["to-number", ["get", h_field], TREE_SVG_DEFAULT_HEIGHT_M],
+            ["to-number", ["coalesce", ["get", h_field], TREE_SVG_DEFAULT_HEIGHT_M], TREE_SVG_DEFAULT_HEIGHT_M],
             TREE_CIRCLE_RADIUS_PER_HEIGHT,
         ]
         z0, z1 = 0, 24
@@ -1829,7 +1965,7 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             return (256.0 * (2 ** zoom)) / (circumference * cos_lat) / TREE_SVG_ICON_BASE_PX
 
         h_field = TREE_SVG_FIELDS["height"]
-        height_m = ["to-number", ["get", h_field], TREE_SVG_DEFAULT_HEIGHT_M]
+        height_m = ["to-number", ["coalesce", ["get", h_field], TREE_SVG_DEFAULT_HEIGHT_M], TREE_SVG_DEFAULT_HEIGHT_M]
         z0, z1 = 0, 24
         m = TREE_SVG_ICON_MIN_SIZE
         return [
@@ -1848,15 +1984,18 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         species_field = TREE_SVG_FIELDS["species"]
         ratio_field = TREE_SVG_FIELDS["crown_ratio"]
 
-        # 樹種 → スラッグ（default は末尾樹種のスラッグ）
+        # 樹種 → スラッグ（フィールドが無い／未知の値のときは「その他N」を代用）
         species_slug = ["match", ["get", species_field]]
         for jp, slug in TREE_SVG_SPECIES:
             species_slug += [jp, slug]
-        species_slug += [TREE_SVG_DEFAULT_SLUG]
+        species_slug += [TREE_SVG_NO_SPECIES_SLUG]
 
         # 樹冠長率 → tier スラッグ（step: <30=low, 30-50=mid, >=50=high）
         # 区間下限が None(=low) を先頭の既定出力にし、以降を stop として追加する。
-        ratio_num = ["to-number", ["get", ratio_field], TREE_SVG_DEFAULT_CROWN_RATIO]
+        # フィールドが無いと ["get"] は null を返し、to-number(null) は 0 を「変換成功」と
+        # みなすため第2引数の既定値に到達しない（→ 0 で low 段=20% になってしまう）。
+        # coalesce で先に null を既定値へ落としてから to-number する。
+        ratio_num = ["to-number", ["coalesce", ["get", ratio_field], TREE_SVG_DEFAULT_CROWN_RATIO], TREE_SVG_DEFAULT_CROWN_RATIO]
         tier_step = ["step", ratio_num]
         first = True
         for slug, _rep, lo in TREE_SVG_TIERS:
@@ -3114,6 +3253,18 @@ function importExternal(event) {
     // 属性ポップアップ・属性集計・属性検索に対応させる
     _registerImportInteractivity(id, file.name, _importFeats);
 
+    // 単木アイコン: Point に「樹高」属性があれば 3D で樹木アイコン化する。
+    // 取り込み全件（_importFeats）を渡して即判定。混在ジオメトリは Point に限定。
+    if (window.__treeSvgConsiderGeojsonLayer) {
+      window.__treeSvgConsiderGeojsonLayer({
+        circle_id: id + "-circle",
+        symbol_id: id + "-tree",
+        source: id,
+        point_filter: ["==", "$type", "Point"],
+        features: _importFeats
+      });
+    }
+
     // バウンディングボックスにフィット
     try {
       const coords = [];
@@ -3697,7 +3848,16 @@ function toggle3DView() {
         # ---- 単木SVGアイコン（オプション2 treesvg.js）連携 ----
         treesvg_script_tag = ""
         treesvg_js = ""
-        if treesvg_layers and opt2_ok:
+        # 単木アイコンの対象になり得るレイヤ:
+        #   - VT Point かつ vt-tree-svg-enabled（生成時に確定）… treesvg_layers
+        #   - レイヤパネルの fgb Point（実行時に「樹高」属性を検出して判定）
+        #   - 外部データ読込の一時レイヤ（実行時に「樹高」属性を検出して判定）
+        # いずれの可能性があり、かつ opt2 ライセンスがある場合に連携JSを注入する。
+        has_fgb_point = any(
+            l.get("kind") == "fgb" and l.get("geom") == "Point" for l in export_layers
+        )
+        treesvg_runtime_possible = bool(opts.get("geojson_import")) or has_fgb_point
+        if (treesvg_layers or treesvg_runtime_possible) and opt2_ok:
             # treesvg.js は認証付きローダー（protected_loader_js）で取得・注入する。
             _need_opt2("treesvg.js")
 
@@ -3706,6 +3866,7 @@ function toggle3DView() {
                 .replace("__TREE_SPECIES_JSON__", json.dumps(TREE_SVG_SPECIES, ensure_ascii=False)) \
                 .replace("__TREE_TIERS_JSON__", json.dumps([[s, rep] for (s, rep, _lo) in TREE_SVG_TIERS], ensure_ascii=False)) \
                 .replace("__TREE_ICON_PREFIX__", json.dumps(TREE_SVG_ICON_PREFIX)) \
+                .replace("__TREE_HEIGHT_FIELD__", json.dumps(TREE_SVG_FIELDS["height"], ensure_ascii=False)) \
                 .replace("__TREE_ICON_IMAGE_EXPR__", json.dumps(self._tree_icon_image_expr(), ensure_ascii=False)) \
                 .replace("__TREE_ICON_SIZE_EXPR__", json.dumps(self._tree_icon_size_expr(cy), ensure_ascii=False)) \
                 .replace("__TREE_ICON_W_PX__", json.dumps(TREE_SVG_ICON_BASE_W_PX)) \
@@ -3978,7 +4139,8 @@ function toggle3DView() {
                     '<span class="fs-label">🔍 属性検索</span>'
                     '<select id="fs-layer" title="検索対象レイヤ"></select>'
                     '<select id="fs-field" title="検索する属性フィールド"></select>'
-                    '<input id="fs-input" type="text" placeholder="属性値（部分一致）" />'
+                    '<input id="fs-input" type="text" placeholder="属性値（部分一致／数値は &gt;=100 等）" '
+                    'title="文字列は部分一致。数値フィールドは &gt; &gt;= &lt; &lt;= = != で検索できます（例: &gt;=100, &lt;50, =3）" />'
                     '<button id="fs-go" onclick="runFeatureSearch()">検索</button>'
                     '<button id="fs-clear" onclick="clearFeatureSearch()">クリア</button>'
                     '<span id="fs-status"></span>'
@@ -4024,9 +4186,12 @@ function toggle3DView() {
 
         layer_panel_html = '<div id="layer-panel"><h2>レイヤ</h2><div id="layer-list"></div></div>' if opts["layer_panel"] else ""
         coord_cell = '<div class="status-cell" id="coord-cell">マウス座標</div>' if opts["coord"] else ""
-        # 自動生成した出典（ベースマップ＋データレイヤ）。手入力の出典とは別欄に表示。
-        basemap_cell_html = (
+        # 自動生成した出典（ベースマップ＋データレイヤ）。手入力の出典(出典1)とは別行(出典2)で表示。
+        basemap_row_html = (
+            '<div class="source-row">'
+            '<div class="status-cell source-label">出典2</div>'
             f'<div class="status-cell" id="basemap-cell" title="自動生成された出典">{auto_source}</div>'
+            '</div>'
             if auto_source else ""
         )
 
@@ -4128,8 +4293,10 @@ html,body{{height:100%;font-family:var(--font);font-size:13px}}
 .status-cell{{background:var(--green-dark);color:var(--text);border-radius:var(--r);padding:3px 12px;font-size:11px;white-space:nowrap}}
 #source-group{{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}}
 #meter-group{{flex-shrink:0;display:flex;flex-direction:column;gap:3px}}
-#attrib-cell{{text-align:left;white-space:normal;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3}}
-#basemap-cell{{text-align:left;white-space:normal;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35;font-size:10.5px;opacity:.92}}
+.source-row{{display:flex;align-items:stretch;gap:6px;min-width:0}}
+.source-label{{flex-shrink:0;font-weight:700;display:flex;align-items:center;justify-content:center;white-space:nowrap;letter-spacing:.5px}}
+#attrib-cell{{flex:1 1 auto;min-width:0;text-align:left;white-space:normal;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3}}
+#basemap-cell{{flex:1 1 auto;min-width:0;text-align:left;white-space:normal;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35;font-size:10.5px;opacity:.92}}
 #zoom-cell{{min-width:200px;text-align:right}}
 #coord-cell{{min-width:200px;text-align:right}}
 #credit-bar{{height:24px;background:var(--green-dark);color:var(--text);display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font-size:11px;flex-shrink:0;z-index:10}}
@@ -4200,10 +4367,12 @@ html,body{{height:100%;font-family:var(--font);font-size:13px}}
   </div>
   {feature_search_html}
   <div id="status-bar">
-    <div class="status-cell" id="scale-cell"></div>
     <div id="source-group">
-      <div class="status-cell" id="attrib-cell">{source or "出典"}</div>
-      {basemap_cell_html}
+      <div class="source-row">
+        <div class="status-cell source-label">出典1</div>
+        <div class="status-cell" id="attrib-cell">{source or "出典"}</div>
+      </div>
+      {basemap_row_html}
     </div>
     <div id="meter-group">
       <div class="status-cell" id="zoom-cell">ズームレベル：--</div>
@@ -4412,6 +4581,7 @@ async function loadFgbLayer(map, layerId, url, styleLayers, initialVisible) {{
   }}
 
   let _loading = false;
+  let _treeChecked = false;   // 単木アイコン判定を済ませたか（取得地物で一度だけ）
 
   async function fetchAndUpdate() {{
     if (_loading) return;
@@ -4431,6 +4601,22 @@ async function loadFgbLayer(map, layerId, url, styleLayers, initialVisible) {{
       }}
       const src = map.getSource(layerId);
       if (src) src.setData({{ type: "FeatureCollection", features }});
+
+      // 単木アイコン: Point レイヤに「樹高」属性があれば 3D で樹木アイコン化する。
+      // 取得した実地物を直接渡して判定（querySourceFeatures の描画待ちを避ける）。
+      // 初回の取得が空（範囲外）でも、地物が取れた最初の機会に一度だけ判定する。
+      if (!_treeChecked && features.length && window.__treeSvgConsiderGeojsonLayer) {{
+        const _circ = (styleLayers.find(ld => ld.type === "circle") || {{}}).id;
+        if (_circ) {{
+          _treeChecked = true;
+          window.__treeSvgConsiderGeojsonLayer({{
+            circle_id: _circ,
+            symbol_id: _circ + "_tree",
+            source: layerId,
+            features: features
+          }});
+        }}
+      }}
     }} catch(e) {{
       console.warn("[fgb] fetch error:", layerId, e);
     }} finally {{
