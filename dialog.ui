@@ -764,6 +764,24 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
        </layout>
       </item>
       <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRowAirphotoChange">
+        <item>
+         <widget class="QCheckBox" name="chkAirphotoChange">
+          <property name="text">
+           <string>空中写真（マップタイル）の２時期比較を実行／OPT1</string>
+          </property>
+          <property name="checked"><bool>false</bool></property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerAirphotoChange">
+          <property name="orientation"><enum>Qt::Horizontal</enum></property>
+          <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
        <layout class="QHBoxLayout" name="layoutBasemapRow7">
         <item>
          <widget class="QCheckBox" name="chkWeather">
