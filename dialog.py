@@ -40,8 +40,18 @@ LICENSE_SERVER_BASE = "https://forestgeo.info/ForestGeoStudio"
 # 各オプションが必要とする保護JS
 #   オプション1: 微地形表現図など
 #   オプション2: 属性集計など
-OPTION1_FEATURE_KEYS = ("csmap", "inyouzu", "mpirrim", "cimap", "colorrelief", "twi", "topex", "weather", "kikikuru", "sentinel", "airphoto")
+OPTION1_FEATURE_KEYS = ("csmap", "inyouzu", "mpirrim", "cimap", "colorrelief", "twi", "topex", "zob", "weather", "kikikuru", "sentinel", "airphoto", "boringlog")
 # =====================================================================
+
+# ===================== 国土交通データプラットフォーム（DPF）連携 =====================
+# ボーリング柱状図（国土地盤情報）取得用。
+#   国土交通DPFのGraphQL API（data-platform.mlit.go.jp）はブラウザからの直接fetchを
+#   CORSで許可していないため、自サーバーのPHPプロキシ（dpf-proxy.php。js.php/tile.php
+#   と同じ階層に設置）を経由して呼び出す。DPFのAPIキーはdpf-proxy.php側（サーバー内）
+#   にのみ保持し、boringlog-extension.js・生成HTMLには一切埋め込まない。
+# 例: "https://forestgeo.info/ForestGeoStudio/dpf-proxy.php"（実際の設置先に合わせて変更）
+MLIT_DPF_PROXY_URL = LICENSE_SERVER_BASE + "/dpf-proxy.php"
+# ==========================================================================
 
 THEMES = {
     "緑系": {
@@ -106,7 +116,7 @@ GSI_BASEMAP_LABEL = {
 # 国土地理院の項目表示順（重複排除後にこの順へ正規化）
 GSI_ITEM_ORDER = ["標準地図", "淡色地図", "全国最新写真", "標高タイル"]
 # 標高タイルを使う微地形表現図のオプションキー（すべて「国土地理院/標高タイル」に集約）
-MICRO_RELIEF_OPT_KEYS = ("csmap", "inyouzu", "mpirrim", "cimap", "colorrelief", "twi", "topex")
+MICRO_RELIEF_OPT_KEYS = ("csmap", "inyouzu", "mpirrim", "cimap", "colorrelief", "twi", "topex", "zob")
 
 
 def build_data_attribution(basemap_name, basemap_name2, opts):
@@ -124,12 +134,14 @@ def build_data_attribution(basemap_name, basemap_name2, opts):
       - Earth Search by Element 84 : Sentinel-2 API（衛星変化解析）
       - 気象庁     : 気象（ナウキャスト＋台風情報＝1セット）／キキクル＝1セット
       - Open-Meteo : weather API（気象オプションと同時に使用）
+      - 国土交通データプラットフォーム : ボーリング柱状図（国土地盤情報）
     """
     gsi = []          # 国土地理院の項目
     jma = []          # 気象庁の項目
     osm = False       # osm.org
     es84 = False      # Earth Search by Element 84
     openmeteo = False # Open-Meteo
+    mlitdpf = False   # 国土交通データプラットフォーム
 
     def _add(lst, item):
         if item not in lst:
@@ -148,6 +160,14 @@ def build_data_attribution(basemap_name, basemap_name2, opts):
     if any(opts.get(k) for k in MICRO_RELIEF_OPT_KEYS):
         _add(gsi, "標高タイル")
 
+    # --- Sentinel-2（Earth Search by Element 84）---
+    if opts.get("sentinel"):
+        es84 = True
+
+    # --- 国土交通データプラットフォーム（ボーリング柱状図）---
+    if opts.get("boringlog"):
+        mlitdpf = True
+    
     # --- 気象庁・Open-Meteo ---
     if opts.get("weather"):
         _add(jma, "ナウキャスト")
@@ -156,9 +176,6 @@ def build_data_attribution(basemap_name, basemap_name2, opts):
     if opts.get("kikikuru"):
         _add(jma, "キキクル")
 
-    # --- Sentinel-2（Earth Search by Element 84）---
-    if opts.get("sentinel"):
-        es84 = True
 
     # 提供元グループを既定順で組み立て
     groups = []
@@ -169,12 +186,142 @@ def build_data_attribution(basemap_name, basemap_name2, opts):
         groups.append("osm.org/OpenStreetMap")
     if es84:
         groups.append("Earth Search by Element 84/Sentinel-2 API")
+    if mlitdpf:
+        groups.append("国土交通データプラットフォーム/ボーリング柱状図（国土地盤情報）")
     if jma:
         groups.append("気象庁/" + "、".join(jma))
     if openmeteo:
         groups.append("Open-Meteo/weather API")
 
     return " ｜ ".join(groups)
+
+
+# 破線パターンのプリセット。
+# MapLibre の line-dasharray は「線幅の倍数」で指定する（ピクセルではない）。
+# 比率は Qt の QPen 既定パターンと同じにしてあるので、QGIS の線種と見た目が揃う。
+#   (表示名, パターン)   パターン None は「カスタム」（入力欄の値を使う）
+# UIが数値／色文字列しか扱えないキー。MapLibre式（リスト）や rgba() 色が
+# 入っていると int()/float() や setText() で落ちるため、UIへ渡す前に
+# 既定値へ置き換え、「適用」のあとで元の式を戻す。
+EXPRESSION_SAFE_DEFAULTS = {
+    "circle-color": "#e63946", "circle-radius": 8,
+    "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5,
+    "line-color": "#1d6fa4", "line-width": 2.0, "line-opacity": 1.0,
+    "fill-color": "#2d8a4e", "fill-opacity": 0.5,
+    "fill-outline-color": "#ffffff",
+    "text-size": 12, "text-color": "#222222",
+    "text-halo-color": "#ffffff", "text-halo-width": 1.5,
+    "vt-outline-color": "#ffffff", "vt-outline-width": 1.0,
+    "vt-line-color": "#1d6fa4", "vt-line-width": 2.0, "vt-line-opacity": 1.0,
+    "vt-circle-color": "#e63946", "vt-circle-radius": 6,
+    "vt-circle-stroke": "#ffffff",
+    "vt-label-size": 12, "vt-label-color": "#222222",
+    "vt-label-halo-color": "#ffffff",
+    "minzoom": 0, "maxzoom": 24,
+    "text-minzoom": 0, "text-maxzoom": 24,
+    "vt-label-minzoom": 0, "vt-label-maxzoom": 24,
+}
+
+
+def is_ui_editable_value(value):
+    """UIのウィジェットでそのまま扱える値か（式・特殊色でないか）。"""
+    if isinstance(value, (list, dict)):
+        return False          # MapLibre式
+    if isinstance(value, str) and value.strip().lower().startswith("rgba("):
+        return False          # rgba() 色（QColorに渡せない書式ではないが編集不可扱い）
+    return True
+
+
+def expression_keys(style):
+    """UIで編集できない値が入っているキーの集合。"""
+    return {key for key in EXPRESSION_SAFE_DEFAULTS
+            if key in style and not is_ui_editable_value(style[key])}
+
+
+def sanitize_style_for_ui(style):
+    """UIプリセット用に、式が入ったキーを既定値へ置き換えたコピーを返す。
+
+    元の辞書は変更しない。式は `_build_html()` がそのまま MapLibre へ
+    渡すため、UIに見せられないだけで出力には効いている。
+    """
+    if not isinstance(style, dict):
+        return {}
+    bad = expression_keys(style)
+    if not bad:
+        return style
+    safe = dict(style)
+    for key in bad:
+        safe[key] = EXPRESSION_SAFE_DEFAULTS[key]
+    return safe
+
+
+# ルール表の行に「読み込んだ元のルール辞書」を紐づけるためのロール。
+# UIに列が無い拡張キー（casing_color / casing_width など）を
+# 「適用」で失わないために使う。
+RULE_SOURCE_ROLE = Qt.UserRole + 71
+
+#: ルール表のUIが管理しているキー（収集時にUIの値で作り直す）
+_UI_MANAGED_RULE_KEYS = frozenset((
+    "value", "num_min", "num_max", "color", "opacity", "width",
+    "label", "dasharray",
+))
+
+# 数値ルール（step式）で「属性値が取れない／数値にならない」ときに使う番兵値。
+# 全区分の下限より小さくなるようにしておくと、既定色（＝該当なし）へ落ちる。
+RULE_NUMERIC_MISS = -1000000000.0
+
+DASH_PRESETS = (
+    ("実線", []),
+    ("破線", [4, 2]),
+    ("点線", [1, 2]),
+    ("一点鎖線", [4, 2, 1, 2]),
+    ("二点鎖線", [4, 2, 1, 2, 1, 2]),
+    ("カスタム", None),
+)
+DASH_CUSTOM_INDEX = len(DASH_PRESETS) - 1
+
+
+def clean_dash_pattern(value):
+    """破線パターンを正の数のリストへ正規化する。実線・不正値なら空リスト。
+
+    MapLibre は最低2要素（線分長・間隔）を必要とするため、
+    1要素以下は実線として扱う。
+    """
+    if not isinstance(value, (list, tuple)):
+        return []
+    out = []
+    for item in value:
+        try:
+            number = float(item)
+        except (TypeError, ValueError):
+            return []
+        if number <= 0:
+            return []
+        out.append(round(number, 3))
+    return out if len(out) >= 2 else []
+
+
+def parse_dash_pattern(text):
+    """"4, 2" や "4 2 1 2" のような文字列を破線パターンへ。"""
+    if not text:
+        return []
+    return clean_dash_pattern(
+        [t for t in re.split(r"[,\s]+", str(text).strip()) if t != ""])
+
+
+def format_dash_pattern(pattern):
+    """破線パターンを入力欄用の文字列へ。"""
+    pattern = clean_dash_pattern(pattern)
+    return ", ".join(("%g" % v) for v in pattern)
+
+
+def dash_preset_index(pattern):
+    """パターンに一致するプリセットの番号（無ければカスタム）。"""
+    pattern = clean_dash_pattern(pattern)
+    for index, (_name, preset) in enumerate(DASH_PRESETS):
+        if preset is not None and clean_dash_pattern(preset) == pattern:
+            return index
+    return DASH_CUSTOM_INDEX
 
 
 GEOM_MAP = {
@@ -741,6 +888,8 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             self.btnSaveStyle.clicked.connect(self._save_style_to_file)
         if hasattr(self, "btnLoadStyle"):
             self.btnLoadStyle.clicked.connect(self._load_style_from_file)
+        # 線種（破線）UI: プリセット投入とカスタム欄の有効切替を先に用意しておく
+        self._setup_dash_ui()
         self.layerTable.itemSelectionChanged.connect(self._on_layer_selected)
 
         if hasattr(self, "cmbTheme"):
@@ -909,6 +1058,11 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 "line-color": "#1d6fa4",
                 "line-width": 2.0,
                 "line-opacity": 1.0,
+                # 破線パターン（線幅の倍数）。空リストは実線
+                "line-dasharray": [],
+                # 縁取り（casing）。幅0なら縁取り無し
+                "line-casing-color": "#000000",
+                "line-casing-width": 0.0,
                 "minzoom": 0,
                 "maxzoom": 24,
                 "label-enabled": False,
@@ -931,6 +1085,8 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 "fill-opacity": 0.5,
                 "fill-outline-color": "#ffffff",
                 "line-opacity": 1.0,
+                # 外周線の破線パターン（線幅の倍数）。空リストは実線
+                "line-dasharray": [],
                 "minzoom": 0,
                 "maxzoom": 24,
                 "label-enabled": False,
@@ -959,10 +1115,14 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 "fill-opacity": 0.6,
                 "vt-outline-color": "#ffffff",
                 "vt-outline-width": 1.0,
+                "vt-outline-dasharray": [],
                 # LineString
                 "vt-line-color": "#1d6fa4",
                 "vt-line-width": 2.0,
                 "vt-line-opacity": 1.0,
+                "vt-line-dasharray": [],
+            "vt-line-casing-color": "#000000",
+            "vt-line-casing-width": 0.0,
                 # Point
                 "vt-circle-color": "#e63946",
                 "vt-circle-radius": 6,
@@ -998,7 +1158,10 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             return
 
         layer = self._layers[row]
-        style = self._styles.get(layer.id(), {})
+        # UIのスピンボックス等は数値しか受け取れないため、MapLibre式（リスト）や
+        # rgba() 色が入っているキーは既定値へ置き換えたコピーを見せる。
+        # 実体（self._styles）は書き換えないので、式はそのまま出力に残る。
+        style = sanitize_style_for_ui(self._styles.get(layer.id(), {}))
         geom = style.get("geom", "")
 
         self.widgetPoint.setVisible(geom == "Point")
@@ -1053,6 +1216,8 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             self.txtLineColor.setText(style.get("line-color", "#1d6fa4"))
             self.spinLineWidth.setValue(float(style.get("line-width", 2.0)))
             self.spinLineOpacity.setValue(float(style.get("line-opacity", 1.0)))
+            self._preset_dash_ui("cmbLineStyle", "txtLineDash",
+                                 style.get("line-dasharray", []))
             if hasattr(self, "spinLineMinZoom"):
                 self.spinLineMinZoom.setValue(float(style.get("minzoom", 0)))
                 self.spinLineMaxZoom.setValue(float(style.get("maxzoom", 24)))
@@ -1062,6 +1227,8 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             self.txtOutlineColor.setText(style.get("fill-outline-color", "#ffffff"))
             if hasattr(self, "spinOutlineOpacity"):
                 self.spinOutlineOpacity.setValue(float(style.get("line-opacity", 1.0)))
+            self._preset_dash_ui("cmbOutlineStyle", "txtOutlineDash",
+                                 style.get("line-dasharray", []))
             if hasattr(self, "spinPolygonMinZoom"):
                 self.spinPolygonMinZoom.setValue(float(style.get("minzoom", 0)))
                 self.spinPolygonMaxZoom.setValue(float(style.get("maxzoom", 24)))
@@ -1078,10 +1245,14 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             self.spinVtFillOpacity.setValue(float(style.get("fill-opacity", 0.6)))
             self.txtVtOutlineColor.setText(style.get("vt-outline-color", "#ffffff"))
             self.spinVtOutlineWidth.setValue(float(style.get("vt-outline-width", 1.0)))
+            self._preset_dash_ui("cmbVtOutlineStyle", "txtVtOutlineDash",
+                                 style.get("vt-outline-dasharray", []))
             # LineString
             self.txtVtLineColor.setText(style.get("vt-line-color", "#1d6fa4"))
             self.spinVtLineWidth.setValue(float(style.get("vt-line-width", 2.0)))
             self.spinVtLineOpacity.setValue(float(style.get("vt-line-opacity", 1.0)))
+            self._preset_dash_ui("cmbVtLineStyle", "txtVtLineDash",
+                                 style.get("vt-line-dasharray", []))
             # Point
             self.txtVtPointColor.setText(style.get("vt-circle-color", "#e63946"))
             self.spinVtPointRadius.setValue(int(style.get("vt-circle-radius", 6)))
@@ -1128,7 +1299,12 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             row = tbl.rowCount()
             tbl.insertRow(row)
             # 列0: 属性値（文字列）
-            tbl.setItem(row, 0, QTableWidgetItem(str(rule.get("value", ""))))
+            value_item = QTableWidgetItem(str(rule.get("value", "")))
+            # UIに列が無いキー（casing_color / casing_width など）を
+            # 「適用」で失わないよう、元のルール辞書ごと行に持たせておく。
+            # 収集時はこのコピーへUIの値を上書きする。
+            value_item.setData(RULE_SOURCE_ROLE, dict(rule))
+            tbl.setItem(row, 0, value_item)
             # 列1: 数値下限（空文字なら文字列モード）
             lo = rule.get("num_min", "")
             tbl.setItem(row, 1, QTableWidgetItem("" if lo == "" else str(lo)))
@@ -1147,6 +1323,16 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             # 列5: 枠幅／ライン幅（空欄なら上段の既定値を継承）
             wd = rule.get("width", "")
             tbl.setItem(row, 5, QTableWidgetItem("" if wd == "" else str(wd)))
+            # 列6: 凡例表示名（空欄なら判定値／数値範囲から自動生成）
+            tbl.setItem(row, 6, QTableWidgetItem(str(rule.get("label", ""))))
+            # 列7: 線種（空欄=レイヤ既定を継承 / "実線" で明示的に実線 /
+            #        "4, 2" のように線幅の倍数で指定）
+            if "dasharray" in rule:
+                dash = clean_dash_pattern(rule.get("dasharray"))
+                dash_text = format_dash_pattern(dash) if dash else "実線"
+            else:
+                dash_text = ""
+            tbl.setItem(row, 7, QTableWidgetItem(dash_text))
 
     def _vt_collect_rules(self):
         #tblVtColorRulesからルールリストを収集して返す
@@ -1159,11 +1345,28 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             col_item = tbl.item(row, 3)
             op_item  = tbl.item(row, 4)
             wd_item  = tbl.item(row, 5)
+            lbl_item = tbl.item(row, 6)
+            dash_item = tbl.item(row, 7)
             # 不透明度・枠幅は任意。空欄なら未指定（上段の既定値を継承）。
             op_text = op_item.text().strip() if op_item else ""
             wd_text = wd_item.text().strip() if wd_item else ""
+            # 凡例表示名も任意。空欄なら判定値／数値範囲から自動生成される。
+            label_text = lbl_item.text().strip() if lbl_item else ""
+            # 線種は空欄ならキー自体を出さない（レイヤ既定を継承）。
+            dash_text = dash_item.text().strip() if dash_item else ""
+
+            # 読込時に控えた元のルール（UIに列が無いキーの保存用）
+            original = {}
+            if val_item is not None:
+                stored = val_item.data(RULE_SOURCE_ROLE)
+                if isinstance(stored, dict):
+                    original = {k: v for k, v in stored.items()
+                                if k not in _UI_MANAGED_RULE_KEYS}
 
             def _apply_extras(rule):
+                # UIが持たないキーを先に戻し、そのうえでUIの値で上書きする
+                for key, value in original.items():
+                    rule.setdefault(key, value)
                 if op_text != "":
                     try:
                         rule["opacity"] = float(op_text)
@@ -1174,6 +1377,15 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                         rule["width"] = float(wd_text)
                     except ValueError:
                         pass
+                if label_text != "":
+                    rule["label"] = label_text
+                if dash_text != "":
+                    if dash_text in ("実線", "solid", "なし", "0"):
+                        rule["dasharray"] = []      # 明示的に実線
+                    else:
+                        pattern = parse_dash_pattern(dash_text)
+                        if pattern:
+                            rule["dasharray"] = pattern
                 return rule
 
             if col_item:
@@ -1214,6 +1426,8 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         tbl.setItem(row, 3, item)                   # 色
         tbl.setItem(row, 4, QTableWidgetItem(""))   # 不透明度（空欄=既定）
         tbl.setItem(row, 5, QTableWidgetItem(""))   # 枠幅／ライン幅（空欄=既定）
+        tbl.setItem(row, 6, QTableWidgetItem(""))   # 凡例表示名（空欄=自動）
+        tbl.setItem(row, 7, QTableWidgetItem(""))   # 線種（空欄=レイヤ既定）
 
     def _vt_remove_rule_row(self):
         #行削除ボタン
@@ -1249,6 +1463,11 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         style = self._styles.get(layer.id(), {})
         geom = style.get("geom", "")
 
+        # UIで編集できない値（MapLibre式・rgba色）は退避しておき、
+        # UIの値で上書きしたあとで書き戻す。こうしないと「適用」を
+        # 押すたびに式が消える。
+        preserved = {key: style[key] for key in expression_keys(style)}
+
         if geom == "Point":
             style["circle-color"] = self.txtPointColor.text().strip()
             style["circle-radius"] = self.spinPointSize.value()
@@ -1260,6 +1479,8 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             style["line-color"] = self.txtLineColor.text().strip()
             style["line-width"] = self.spinLineWidth.value()
             style["line-opacity"] = self.spinLineOpacity.value()
+            style["line-dasharray"] = self._collect_dash_ui(
+                "cmbLineStyle", "txtLineDash")
             if hasattr(self, "spinLineMinZoom"):
                 style["minzoom"] = self.spinLineMinZoom.value()
                 style["maxzoom"] = self.spinLineMaxZoom.value()
@@ -1269,6 +1490,8 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             style["fill-outline-color"] = self.txtOutlineColor.text().strip()
             if hasattr(self, "spinOutlineOpacity"):
                 style["line-opacity"] = self.spinOutlineOpacity.value()
+            style["line-dasharray"] = self._collect_dash_ui(
+                "cmbOutlineStyle", "txtOutlineDash")
             if hasattr(self, "spinPolygonMinZoom"):
                 style["minzoom"] = self.spinPolygonMinZoom.value()
                 style["maxzoom"] = self.spinPolygonMaxZoom.value()
@@ -1298,9 +1521,13 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             style["fill-opacity"] = self.spinVtFillOpacity.value()
             style["vt-outline-color"] = self.txtVtOutlineColor.text().strip()
             style["vt-outline-width"] = self.spinVtOutlineWidth.value()
+            style["vt-outline-dasharray"] = self._collect_dash_ui(
+                "cmbVtOutlineStyle", "txtVtOutlineDash")
             style["vt-line-color"] = self.txtVtLineColor.text().strip()
             style["vt-line-width"] = self.spinVtLineWidth.value()
             style["vt-line-opacity"] = self.spinVtLineOpacity.value()
+            style["vt-line-dasharray"] = self._collect_dash_ui(
+                "cmbVtLineStyle", "txtVtLineDash")
             style["vt-circle-color"] = self.txtVtPointColor.text().strip()
             style["vt-circle-radius"] = self.spinVtPointRadius.value()
             style["vt-circle-stroke"] = self.txtVtPointStroke.text().strip()
@@ -1325,6 +1552,12 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             style["raster-opacity"] = self.spinRasterOpacity.value()
             style["minzoom"] = self.spinRasterMinZoom.value()
             style["maxzoom"] = self.spinRasterMaxZoom.value()
+
+        # 退避した式を書き戻す（UIの値より式を優先する）
+        if preserved:
+            style.update(preserved)
+            self._log("Style applied: preserved expression keys = {0}".format(
+                sorted(preserved)))
 
         self._styles[layer.id()] = style
         self._log(f"Style applied: {layer.name()} -> {style}")
@@ -1472,6 +1705,77 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             "スタイル設定を初期値としてプリセットしました。\n"
             "必要に応じて各項目を手修正してから「このレイヤにスタイルを適用」を押してください。"
         )
+
+    # ---------------------- 線種UI（破線）ヘルパー ----------------------
+    def _dash_widgets(self, combo_name, edit_name):
+        """線種コンボとカスタム入力欄を返す（未配置なら (None, None)）。"""
+        combo = getattr(self, combo_name, None)
+        edit = getattr(self, edit_name, None)
+        return combo, edit
+
+    def _setup_dash_ui(self):
+        """線種コンボへプリセットを流し込み、カスタム欄の有効切替を接続する。"""
+        for combo_name, edit_name in (
+                ("cmbLineStyle", "txtLineDash"),
+                ("cmbOutlineStyle", "txtOutlineDash"),
+                ("cmbVtLineStyle", "txtVtLineDash"),
+                ("cmbVtOutlineStyle", "txtVtOutlineDash")):
+            combo, edit = self._dash_widgets(combo_name, edit_name)
+            if combo is None:
+                continue
+            combo.blockSignals(True)
+            combo.clear()
+            for name, _pattern in DASH_PRESETS:
+                combo.addItem(name)
+            combo.setCurrentIndex(0)
+            combo.blockSignals(False)
+            combo.setToolTip(
+                "破線の種類。数値は線幅の倍数で解釈されます"
+                "（線を太くすると破線も比例して大きくなります）。")
+            if edit is not None:
+                edit.setPlaceholderText("例: 4, 2（線分, 間隔…）")
+                edit.setToolTip(
+                    "「カスタム」を選んだときのパターン。線幅の倍数で、"
+                    "線分と間隔を交互に指定します。")
+                edit.setEnabled(False)
+            combo.currentIndexChanged.connect(
+                lambda _index, c=combo_name, e=edit_name:
+                self._on_dash_style_changed(c, e))
+
+    def _on_dash_style_changed(self, combo_name, edit_name):
+        """線種を変えたとき: カスタム欄の有効切替とプリセット値の反映。"""
+        combo, edit = self._dash_widgets(combo_name, edit_name)
+        if combo is None or edit is None:
+            return
+        index = combo.currentIndex()
+        is_custom = (index == DASH_CUSTOM_INDEX)
+        edit.setEnabled(is_custom)
+        if not is_custom:
+            edit.setText(format_dash_pattern(DASH_PRESETS[index][1]))
+
+    def _preset_dash_ui(self, combo_name, edit_name, pattern):
+        """スタイル辞書の破線パターンをUIへプリセットする。"""
+        combo, edit = self._dash_widgets(combo_name, edit_name)
+        if combo is None:
+            return
+        pattern = clean_dash_pattern(pattern)
+        index = dash_preset_index(pattern)
+        combo.blockSignals(True)
+        combo.setCurrentIndex(index)
+        combo.blockSignals(False)
+        if edit is not None:
+            edit.setText(format_dash_pattern(pattern))
+            edit.setEnabled(index == DASH_CUSTOM_INDEX)
+
+    def _collect_dash_ui(self, combo_name, edit_name):
+        """UIから破線パターンを取り出す。実線なら空リスト。"""
+        combo, edit = self._dash_widgets(combo_name, edit_name)
+        if combo is None:
+            return []
+        index = combo.currentIndex()
+        if index == DASH_CUSTOM_INDEX:
+            return parse_dash_pattern(edit.text() if edit is not None else "")
+        return clean_dash_pattern(DASH_PRESETS[index][1])
 
     def _pick_color(self, line_edit):
         current = QColor(line_edit.text())
@@ -1683,10 +1987,12 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 "colorrelief":self.chkColorrelief.isChecked() if hasattr(self, "chkColorrelief") else False,
                 "twi":        self.chkTwi.isChecked()        if hasattr(self, "chkTwi")       else False,
                 "topex":      self.chkTopex.isChecked()      if hasattr(self, "chkTopex")     else False,
+                "zob":        self.chkZob.isChecked()        if hasattr(self, "chkZob")       else False,
                 "weather":    self.chkWeather.isChecked()    if hasattr(self, "chkWeather")   else False,
                 "kikikuru":     self.chkKikikuru.isChecked()    if hasattr(self, "chkKikikuru")    else False,
                 "sentinel":   self.chkSentinelChange.isChecked() if hasattr(self, "chkSentinelChange")  else False,
                 "airphoto":   self.chkAirphotoChange.isChecked() if hasattr(self, "chkAirphotoChange")  else False,
+                "boringlog":  self.chkBoringLog.isChecked()      if hasattr(self, "chkBoringLog")        else False,
                 # 各微地形・気象レイヤの「表示」初期状態（出力ONかつ表示OFFなら初期非表示）
                 "csmap_vis":       self.chkCsmapVis.isChecked()       if hasattr(self, "chkCsmapVis")       else True,
                 "inyouzu_vis":     self.chkInyouzuVis.isChecked()     if hasattr(self, "chkInyouzuVis")     else True,
@@ -1695,8 +2001,10 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 "colorrelief_vis": self.chkColorreliefVis.isChecked() if hasattr(self, "chkColorreliefVis") else True,
                 "twi_vis":         self.chkTwiVis.isChecked()         if hasattr(self, "chkTwiVis")         else True,
                 "topex_vis":       self.chkTopexVis.isChecked()       if hasattr(self, "chkTopexVis")       else True,
+                "zob_vis":         self.chkZobVis.isChecked()         if hasattr(self, "chkZobVis")         else True,
                 "weather_vis":     self.chkWeatherVis.isChecked()     if hasattr(self, "chkWeatherVis")     else True,
                 "kikikuru_vis":    self.chkKikikuruVis.isChecked()    if hasattr(self, "chkKikikuruVis")    else True,
+                "boringlog_vis":   self.chkBoringLogVis.isChecked()   if hasattr(self, "chkBoringLogVis")   else True,
                 # 種類2ベースマップの「表示」初期状態（チェックを外すと初期非表示で開始）
                 "basemap2_vis":    self.chkBasemap2Vis.isChecked()    if hasattr(self, "chkBasemap2Vis")    else True,
                 "feature_search":  self.chkFeatureSearch.isChecked()  if hasattr(self, "chkFeatureSearch")  else True,
@@ -1767,7 +2075,215 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             self._log(traceback.format_exc())
             QMessageBox.critical(self, "エラー", traceback.format_exc())
 
-    def _build_color_expr(self, rules, field, default_color):
+    # ===================== 破線（line-dasharray）=====================
+    # MapLibre の line-dasharray は **データ駆動式を受け付けない**（zoom関数のみ）。
+    # そのため「区分ごとに違う破線」は、パターンごとに filter 付きの line レイヤへ
+    # 分割して表現する。1パターンだけなら従来どおり1枚で済む。
+
+    def _rule_input_expr(self, field, is_numeric=False):
+        """色分けルールの判定入力式。色・幅・破線フィルタで共用する。
+
+        ここを1箇所にまとめておくことで、判定の仕方（null や型の扱い）が
+        色分けと破線フィルタでずれないようにしている。
+
+        **属性値の型ゆれを吸収するのが主目的。** MapLibre の match / step /
+        比較演算子はいずれも型に厳密で、`["get", field]` が返す型が
+        ルール側の型と違うと
+
+          * match … どのルールにも一致せず既定色になる
+          * step  … 実行時エラーになり、そのプロパティが MapLibre の
+                    既定値（line-width 1 / line-opacity 1 など）に落ちる
+          * filter … 実行時エラーは「false」扱いなので**地物が消える**
+
+        という別々の壊れ方をする。FlatGeobuf / MVT 側の型は QGIS の
+        プロジェクト定義からは確定できない（コード値が文字列列に入って
+        いることは珍しくない）ので、入力側で明示的に型を揃える。
+
+        数値ルール … ["to-number", ["coalesce", ["get", f], MISS], MISS]
+            "619"（文字列）も 619（数値）も 619 になる。
+            属性が無い／null なら MISS（全区分の下限より小さい値）。
+            数値に変換できない文字列も MISS。
+            ※空文字 "" は ECMAScript の規則で 0 になる。
+        文字列ルール … ["to-string", ["coalesce", ["get", f], ""]]
+            619（数値）も "619" になる。null は "" になるので、
+            `value: ""` の空欄ルールが null 地物にも当たる。
+        """
+        if is_numeric:
+            return ["to-number",
+                    ["coalesce", ["get", field], RULE_NUMERIC_MISS],
+                    RULE_NUMERIC_MISS]
+        return ["to-string", ["coalesce", ["get", field], ""]]
+
+    def _numeric_rule_bounds(self, rules):
+        """数値ルールを下限昇順に並べ、[(下限, 上限 or None, ルール), ...] を返す。
+
+        step 式と同じ考え方で、上限は「次の区分の下限」になる。
+        最後の区分は上限なし（None）。
+        """
+        sorted_rules = sorted([r for r in rules if "num_min" in r],
+                             key=lambda r: float(r["num_min"]))
+        out = []
+        for index, rule in enumerate(sorted_rules):
+            lower = float(rule["num_min"])
+            upper = (float(sorted_rules[index + 1]["num_min"])
+                     if index + 1 < len(sorted_rules) else None)
+            out.append((lower, upper, rule))
+        return out
+
+    def _rule_filter_expr(self, target_rules, all_rules, field):
+        """指定したルールに該当する地物だけを通す MapLibre filter を返す。
+
+        文字列ルールなら match 式、数値ルールなら区間比較の any 式。
+        該当ルールが無ければ None（＝フィルタ不要）。
+        """
+        if not target_rules or not field:
+            return None
+        is_numeric = any("num_min" in r or "num_max" in r for r in all_rules)
+
+        if not is_numeric:
+            values = [str(r.get("value", "")) for r in target_rules]
+            return ["match", self._rule_input_expr(field), values, True, False]
+
+        targets = [id(r) for r in target_rules]
+        conditions = []
+        for lower, upper, rule in self._numeric_rule_bounds(all_rules):
+            if id(rule) not in targets:
+                continue
+            # filter では実行時エラーが「false」扱い（＝地物が消える）になるため、
+            # 比較の前に必ず数値へ揃える（_rule_input_expr 参照）。
+            lower_cond = [">=", self._rule_input_expr(field, True), lower]
+            if upper is None:
+                conditions.append(lower_cond)
+            else:
+                conditions.append(["all", lower_cond,
+                                   ["<", self._rule_input_expr(field, True),
+                                    upper]])
+        if not conditions:
+            return None
+        return conditions[0] if len(conditions) == 1 else ["any"] + conditions
+
+    def _build_line_layers(self, layer_id, source, paint, minzoom, maxzoom,
+                           base_dash, rules, field, source_layer=None):
+        """line レイヤ定義のリストを返す（破線パターンごとに分割）。
+
+        base_dash … レイヤ既定の破線パターン（空リストで実線）
+        rules     … 属性値色分けルール（各ルールの "dasharray" を見る）
+        """
+        base_dash = clean_dash_pattern(base_dash)
+
+        def _make(suffix, dash, filter_expr):
+            layer = {
+                "id": layer_id + suffix,
+                "type": "line",
+                "source": source,
+                "paint": dict(paint),
+            }
+            # ベクトルタイルはレイヤ単位のズーム範囲を持たないので None が来る
+            if minzoom is not None:
+                layer["minzoom"] = minzoom
+            if maxzoom is not None:
+                layer["maxzoom"] = maxzoom
+            if source_layer:
+                layer["source-layer"] = source_layer
+            if dash:
+                layer["paint"]["line-dasharray"] = dash
+            if filter_expr is not None:
+                layer["filter"] = filter_expr
+            return layer
+
+        # 区分ごとの破線をパターン別にまとめる（定義順を保つ）
+        # キー自体が無いルールはレイヤ既定を継承。キーがあれば空リストでも
+        # 「明示的に実線」として扱う（既定が破線のときに実線へ戻せるように）。
+        groups = []
+        for rule in (rules or []):
+            if "dasharray" in rule:
+                dash = clean_dash_pattern(rule.get("dasharray"))
+            else:
+                dash = base_dash
+            for entry in groups:
+                if entry[0] == dash:
+                    entry[1].append(rule)
+                    break
+            else:
+                groups.append([dash, [rule]])
+
+        special = [(dash, group) for dash, group in groups if dash != base_dash]
+        if not field or not special:
+            # 単一パターン。従来どおり1枚だけ出す。
+            return [_make("", base_dash, None)]
+
+        # 既定パターンのレイヤは「特別扱いのどれにも該当しない地物」を描く
+        others = [r for _dash, group in special for r in group]
+        base_filter = self._rule_filter_expr(others, rules, field)
+        layers = [_make("", base_dash,
+                        ["!", base_filter] if base_filter is not None else None)]
+
+        for index, (dash, group) in enumerate(special, start=1):
+            layers.append(_make("_dash%d" % index, dash,
+                                self._rule_filter_expr(group, rules, field)))
+        return layers
+
+    def _build_casing_layer(self, layer_id, source, style, rules, field,
+                            color_key, width_key, minzoom, maxzoom,
+                            source_layer=None):
+        """縁取り（casing）レイヤを返す。指定が無ければ None。
+
+        道路のように「太い縁取り線の上に細い中心線を重ねる」表現は、
+        QGISでは同じ条件のスタイルを2枚重ねて作る。MapLibre でも同じで、
+        **太い線のレイヤを下に敷き、その上に本線のレイヤを描く**。
+        `.fgstyle` は1レイヤ1スタイルなので、縁取り分だけを
+
+            レイヤ既定 : `line-casing-color` / `line-casing-width`
+                         （VTは `vt-line-casing-*`）
+            区分ごと   : `vt-color-rules[].casing_color` / `casing_width`
+
+        で持ち、ここで本線より前（＝下）に1枚差し込む。
+        幅は**線の総幅**（中心線＋左右の縁取り）で、MapLibre の line-width と
+        同じ意味。したがって QGIS の casing 幅をそのまま入れればよい。
+        """
+        base_color = style.get(color_key)
+        base_width = style.get(width_key)
+        rules = rules or []
+
+        def _positive(value):
+            try:
+                return float(value) > 0
+            except (TypeError, ValueError):
+                return isinstance(value, list)      # 式なら有効とみなす
+
+        has_any = _positive(base_width) or any(
+            _positive(r.get("casing_width")) for r in rules)
+        if not has_any:
+            return None
+
+        default_color = base_color or "#000000"
+        default_width = base_width if base_width is not None else 0.0
+
+        color_expr = self._build_color_expr(rules, field, default_color,
+                                            key="casing_color")
+        width_expr = self._build_value_expr(rules, field, default_width,
+                                            "casing_width")
+        layer = {
+            "id": layer_id,
+            "type": "line",
+            "source": source,
+            "paint": {
+                "line-color": color_expr,
+                "line-width": width_expr,
+                # 縁取りは本線と同じ不透明度で敷く（別指定は持たない）
+                "line-opacity": style.get("vt-line-opacity",
+                                          style.get("line-opacity", 1.0)),
+            },
+        }
+        if minzoom is not None:
+            layer["minzoom"] = minzoom
+        if maxzoom is not None:
+            layer["maxzoom"] = maxzoom
+        if source_layer:
+            layer["source-layer"] = source_layer
+        return layer
+
+    def _build_color_expr(self, rules, field, default_color, key="color"):
         """
         MapLibre GL JS の match 式または step 式を生成する。
         rules が空、またはフィールド名が空の場合は default_color（文字列）を返す。
@@ -1786,6 +2302,12 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         if not rules or not field:
             return default_color
 
+        # 既定の "color" 以外のキー（outline_color / casing_color）を見るときは、
+        # そのキーを持つルールが1つも無ければ式を作らずスカラーのまま返す。
+        # （既定値そのものが式のとき、無駄に入れ子になるのを防ぐ）
+        if key != "color" and not any(key in r for r in rules):
+            return default_color
+
         # 数値ルールかどうかを判定（いずれかの行に num_min または num_max があれば数値モード）
         is_numeric = any("num_min" in r or "num_max" in r for r in rules)
 
@@ -1799,20 +2321,20 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             )
             if not sorted_rules:
                 return default_color
-            expr = ["step", ["get", field], default_color]
+            expr = ["step", self._rule_input_expr(field, True), default_color]
             for r in sorted_rules:
                 expr.append(float(r["num_min"]))
-                expr.append(r["color"])
+                expr.append(r.get(key, default_color))
             return expr
         else:
             # match 式（文字列）
-            # ["get", field] は属性値が null の地物に対して null を返し、match がマッチしなくなる。
-            # coalesce で null を空文字列 "" に変換することで、空欄ルール（value=""）が null 地物にも適用される。
-            get_expr = ["coalesce", ["get", field], ""]
+            # 属性が null の地物、属性が数値型の地物のどちらにも当てられるよう、
+            # 入力側を coalesce + to-string で揃える（_rule_input_expr 参照）。
+            get_expr = self._rule_input_expr(field)
             expr = ["match", get_expr]
             for rule in rules:
                 expr.append(rule["value"])
-                expr.append(rule["color"])
+                expr.append(rule.get(key, default_color))
             expr.append(default_color)
             return expr
 
@@ -1856,13 +2378,13 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             )
             if not sorted_rules:
                 return default_value
-            expr = ["step", ["get", field], default_value]
+            expr = ["step", self._rule_input_expr(field, True), default_value]
             for r in sorted_rules:
                 expr.append(float(r["num_min"]))
                 expr.append(_rule_val(r))
             return expr
         else:
-            get_expr = ["coalesce", ["get", field], ""]
+            get_expr = self._rule_input_expr(field)
             expr = ["match", get_expr]
             for rule in rules:
                 expr.append(rule["value"])
@@ -1883,21 +2405,59 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
 
         # ジオメトリ種別を正規化
         gt = geom_type or style.get("vt-geom-type") or style.get("geom", "Polygon")
+        base_dash = []
         if gt in ("Polygon", "polygon"):
             shape = "fill"
             default_color = style.get("fill-color", "#2d8a4e")
         elif gt in ("LineString", "linestring", "line"):
             shape = "line"
             default_color = style.get("vt-line-color") or style.get("line-color", "#1d6fa4")
+            base_dash = (style.get("vt-line-dasharray")
+                         if "vt-line-dasharray" in style
+                         else style.get("line-dasharray"))
         else:
             shape = "circle"
             default_color = style.get("vt-circle-color") or style.get("circle-color", "#e63946")
 
+        if not isinstance(default_color, str):
+            default_color = "#cccccc"
+
+        # 凡例を直接指定する vt-legend があればそれを最優先で使う。
+        # 色にMapLibre式を入れた場合など、ルールから凡例を導けないときの逃げ道。
+        direct = style.get("vt-legend")
+        if isinstance(direct, list) and direct:
+            items = []
+            for entry in direct:
+                if not isinstance(entry, dict):
+                    continue
+                color = entry.get("color", default_color)
+                item = {
+                    "label": str(entry.get("label", "")),
+                    "color": color if isinstance(color, str) else default_color,
+                    "shape": entry.get("shape", shape),
+                }
+                dash = clean_dash_pattern(entry.get("dash"))
+                if dash:
+                    item["dash"] = dash
+                items.append(item)
+            if items:
+                return items
+
         if rules and field:
             items = []
+            # 「表示名も色も同じ」行は凡例では1行にまとめる。
+            # 表記ゆれ対策の別名ルール（'１２３' と '123' を同じ色で当てる等）は
+            # 描画には要るが、レイヤパネルには同じ項目が2度出てしまうため。
+            seen = set()
             for rule in rules:
                 has_num = "num_min" in rule or "num_max" in rule
-                if has_num:
+                # 凡例表示名が入力されていればそれを最優先する。
+                # 判定値（例: ser = 619）と凡例名（例: K21_vas_ap）は
+                # 別物であることが多いため。
+                explicit = str(rule.get("label", "")).strip()
+                if explicit:
+                    label = explicit
+                elif has_num:
                     lo = rule.get("num_min", "")
                     hi = rule.get("num_max", "")
                     lo_str = str(int(lo) if isinstance(lo, float) and lo == int(lo) else lo) if lo != "" else ""
@@ -1912,10 +2472,28 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                         label = ""
                 else:
                     label = str(rule.get("value", ""))
-                items.append({"label": label, "color": rule["color"], "shape": shape})
+                color = rule["color"]
+                # 色に MapLibre 式（配列）が入っていると凡例の色見本に
+                # できないので、その場合だけ既定色へ落とす
+                swatch = color if isinstance(color, str) else default_color
+                # 線の凡例は実線／破線／点線を描き分ける（地図と揃える）
+                dash = clean_dash_pattern(
+                    rule["dasharray"] if "dasharray" in rule else base_dash)
+                key = (label, swatch, tuple(dash))
+                if key in seen:
+                    continue
+                seen.add(key)
+                item = {"label": label, "color": swatch, "shape": shape}
+                if shape == "line" and dash:
+                    item["dash"] = dash
+                items.append(item)
             return items
         else:
-            return [{"label": "", "color": default_color, "shape": shape}]
+            item = {"label": "", "color": default_color, "shape": shape}
+            dash = clean_dash_pattern(base_dash)
+            if shape == "line" and dash:
+                item["dash"] = dash
+            return [item]
 
     def _tree_circle_radius_expr(self, center_lat):
         """
@@ -2015,9 +2593,26 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
             full_name,                   # 16以上: 樹幹+樹冠（tier別）
         ]
 
-    def _build_vector_tile_layers(self, vt, center_lat=0.0):
+    @staticmethod
+    def _unique_id(candidate, used):
+        """既に使われていれば _2, _3 … を付けて一意にする。"""
+        base = candidate or "layer"
+        name = base
+        index = 2
+        while name in used:
+            name = "{0}_{1}".format(base, index)
+            index += 1
+        used.add(name)
+        return name
+
+    def _build_vector_tile_layers(self, vt, center_lat=0.0, id_prefix=None):
         style = vt.get("style", {})
         source_id = vt.get("source") or vt["id"]
+        # レイヤIDの接頭辞はソースIDと分ける。
+        # 同じソース（同じタイルURL）を source-layer 違いで2回使う構成があり、
+        # ソースIDからIDを作ると `layer_fill` が衝突して
+        # MapLibre の addLayer が例外を投げる（＝以降の処理が全部止まる）。
+        prefix = id_prefix or source_id
         source_layer = style.get("vt-source-layer", "").strip()
         geom_type = style.get("vt-geom-type", "Polygon")
 
@@ -2033,7 +2628,7 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         color_rules = style.get("vt-color-rules", []) if rule_enabled else []
 
         if geom_type == "Polygon":
-            fill_id = source_id + "_fill"
+            fill_id = prefix + "_fill"
             fill_color = self._build_color_expr(color_rules, rule_field, style.get("fill-color", "#2d8a4e"))
             # 属性値ごとの不透明度（塗り）・枠幅（外周線幅）（空欄ルールは上段の既定値を継承）
             fill_op = self._build_value_expr(color_rules, rule_field, style.get("fill-opacity", 0.6), "opacity")
@@ -2049,40 +2644,54 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 },
             })
             layer_ids.append(fill_id)
-            outline_id = source_id + "_outline"
-            layer_defs.append({
-                "id": outline_id,
-                "type": "line",
-                "source": source_id,
-                "source-layer": source_layer,
-                "paint": {
-                    "line-color": style.get("vt-outline-color", "#ffffff"),
+            outline_id = prefix + "_outline"
+            # 外周線の色も区分ごとに変えられる（ルールの outline_color）。
+            # QGISでは「塗りと同じ色で縁取る」定義が普通なので、
+            # 1色に丸めると全ポリゴンが同じ縁取り色になってしまう。
+            outline_color = self._build_color_expr(
+                color_rules, rule_field, style.get("vt-outline-color", "#ffffff"),
+                key="outline_color")
+            outline_layers = self._build_line_layers(
+                outline_id, source_id,
+                {
+                    "line-color": outline_color,
                     "line-width": outline_w,
                 },
-            })
-            layer_ids.append(outline_id)
+                None, None,
+                style.get("vt-outline-dasharray", []),
+                color_rules, rule_field, source_layer=source_layer)
+            layer_defs.extend(outline_layers)
+            layer_ids.extend(ld["id"] for ld in outline_layers)
 
         elif geom_type == "LineString":
-            line_id = source_id + "_line"
+            line_id = prefix + "_line"
             line_color = self._build_color_expr(color_rules, rule_field, style.get("vt-line-color", "#1d6fa4"))
             # 属性値ごとのライン幅・不透明度（空欄ルールは上段の既定値を継承）
             line_w = self._build_value_expr(color_rules, rule_field, style.get("vt-line-width", 2.0), "width")
             line_op = self._build_value_expr(color_rules, rule_field, style.get("vt-line-opacity", 1.0), "opacity")
-            layer_defs.append({
-                "id": line_id,
-                "type": "line",
-                "source": source_id,
-                "source-layer": source_layer,
-                "paint": {
+            # 縁取り（casing）は本線より前＝下に敷く
+            casing = self._build_casing_layer(
+                line_id + "_casing", source_id, style, color_rules, rule_field,
+                "vt-line-casing-color", "vt-line-casing-width",
+                None, None, source_layer=source_layer)
+            if casing is not None:
+                layer_defs.append(casing)
+                layer_ids.append(casing["id"])
+            line_layers = self._build_line_layers(
+                line_id, source_id,
+                {
                     "line-color": line_color,
                     "line-width": line_w,
                     "line-opacity": line_op,
                 },
-            })
-            layer_ids.append(line_id)
+                None, None,
+                style.get("vt-line-dasharray", []),
+                color_rules, rule_field, source_layer=source_layer)
+            layer_defs.extend(line_layers)
+            layer_ids.extend(ld["id"] for ld in line_layers)
 
         elif geom_type == "Point":
-            circle_id = source_id + "_circle"
+            circle_id = prefix + "_circle"
             tree_svg_enabled = bool(style.get("vt-tree-svg-enabled", False))
             if tree_svg_enabled:
                 # 単木アイコン: フォールバック(=2D常時)の円は黒・樹高由来の実寸半径。
@@ -2122,7 +2731,7 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
 
         label_field = style.get("vt-label-field", "").strip()
         if style.get("vt-label-enabled") and label_field:
-            label_id = source_id + "_label"
+            label_id = prefix + "_label"
             halo_color = style.get("vt-label-halo-color", "#ffffff") if style.get("vt-label-halo", True) else "rgba(0,0,0,0)"
             halo_width = 1.5 if style.get("vt-label-halo", True) else 0
             layer_defs.append({
@@ -2219,6 +2828,8 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
         sentinel_panel_js = ""    # 未使用（Sentinelは左ツールボタンで操作）       
         airphoto_init_js = ""     # 空中写真2時期比較 変化解析 init JS（オプション1）
         airphoto_panel_js = ""    # 未使用（空中写真解析も左ツールボタンで操作）
+        boringlog_init_js = ""    # ボーリング柱状図（国土交通DPF） init JS
+        boringlog_panel_js = ""   # ボーリング柱状図 パネルトグル
         kikikuru_init_js = ""     # キキクル init JS
         kikikuru_panel_js = ""    # キキクル パネルトグル
         weather_init_js = ""      # 気象 init JS（描画最上層＝最後に addLayer）
@@ -2227,46 +2838,103 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
 
         # QGIS legend order is top-to-bottom. MapLibre draws later layers on top,
         # so add map layers bottom-to-top.
-        all_layers = []
-        fgb_calls = []  # (layerId, url, styleLayers) を後でまとめてemit
+        # 地図への追加操作を **レイヤパネルと同じ順序** で1本に積む。
+        #   ("layer", レイヤ定義)                      … map.addLayer
+        #   ("fgb", id, url, スタイル配列, 初期表示)   … loadFgbLayer
+        # MapLibre は後から追加したものが上に描かれるので、
+        # 種別（ラスタ／ベクトルタイル／fgb）で分けて emit すると
+        # 「パネルでは下なのに地図では上」という食い違いが起きる。
+        map_ops = []
         layer_id_groups = []
         treesvg_layers = []  # 単木SVGアイコン有効な Point VectorTile レイヤ情報
+
+        # MapLibre は同じIDのソース／レイヤを2回追加すると例外を投げ、
+        # その時点で load ハンドラが止まる（＝地図もレイヤパネルも出ない）。
+        # 別レイヤで `vt-source` が同じ値になっている構成は珍しくないので、
+        # ここでIDを一意化しておく。
+        used_source_ids = {}    # 実際に addSource したID -> タイルURL
+        used_layer_ids = set()  # addLayer に使ったID（接頭辞も含む）
+
+        # fgb レイヤは loadFgbLayer が layer["id"] をそのまま
+        # **ソースIDにもレイヤIDにも**使う。`_safe_id()` は日本語名を
+        # 全部落とすので `layer` / `layer_2` … になりやすく、
+        # ラスタ／ベクトルタイルが同じIDを取ると addSource が衝突して
+        # load ハンドラごと止まる（＝fgbが出ない・パネルが空になる）。
+        # 先に予約しておく。
+        for _pre in export_layers:
+            if _pre.get("kind") == "fgb":
+                used_source_ids[_pre["id"]] = _pre.get("url")
+                used_layer_ids.add(_pre["id"])
+
+        def _source_for(requested, url):
+            """ソースIDを決めて、必要なら addSource する（重複なら再利用）。"""
+            requested = requested or "layer"
+            existing = used_source_ids.get(requested)
+            if existing == url:
+                return requested, False        # 同じソース。追加不要
+            if existing is not None:
+                # 同名だが別URL → 一意なIDを作る
+                index = 2
+                while "{0}_{1}".format(requested, index) in used_source_ids:
+                    index += 1
+                requested = "{0}_{1}".format(requested, index)
+            used_source_ids[requested] = url
+            return requested, True
 
         for layer in export_layers:
 
             if layer["kind"] == "raster":
-                load_js += f"""
-          map.addSource({json.dumps(layer["id"])}, {{
-            type: "raster",
-            tiles: [{json.dumps(layer["url"])}],
-            tileSize: 256
-          }});
+                raster_src, need_add = _source_for(layer["id"], layer["url"])
+                raster_lid = self._unique_id(raster_src, used_layer_ids)
+                if need_add:
+                    load_js += f"""
+          try {{
+            map.addSource({json.dumps(raster_src)}, {{
+              type: "raster",
+              tiles: [{json.dumps(layer["url"])}],
+              tileSize: 256
+            }});
+          }} catch(e) {{ console.error("[source] 追加に失敗:", {json.dumps(raster_src)}, e); }}
         """
                 r_style = layer.get("style", {})
                 raster_layer_def = {
-                    "id": layer["id"],
+                    "id": raster_lid,
                     "type": "raster",
-                    "source": layer["id"],
+                    "source": raster_src,
                     "minzoom": float(r_style.get("minzoom", 0)),
                     "maxzoom": float(r_style.get("maxzoom", 24)),
                     "paint": {
                         "raster-opacity": float(r_style.get("raster-opacity", 1.0)),
                     },
                 }
-                all_layers.append(raster_layer_def)
-                layer_id_groups.append(([layer["id"]], layer["name"], "raster", [], layer.get("initial_visible", True)))
+                map_ops.append(("layer", raster_layer_def))
+                layer_id_groups.append(([raster_lid], layer["name"], "raster", [], layer.get("initial_visible", True)))
 
             elif layer["kind"] == "vector-tile":
-                load_js += f"""
-          map.addSource({json.dumps(layer["source"])}, {{
-            type: "vector",
-            tiles: [{json.dumps(layer["url"])}]
-          }});
+                vt_src, need_add = _source_for(layer.get("source") or layer["id"],
+                                               layer["url"])
+                if need_add:
+                    load_js += f"""
+          try {{
+            map.addSource({json.dumps(vt_src)}, {{
+              type: "vector",
+              tiles: [{json.dumps(layer["url"])}]
+            }});
+          }} catch(e) {{ console.error("[source] 追加に失敗:", {json.dumps(vt_src)}, e); }}
         """
-                vt_defs, vt_ids = self._build_vector_tile_layers(layer, center_lat=cy)
+                # レイヤIDの接頭辞。ソースを共有していても衝突しないようにする
+                vt_prefix = self._unique_id(
+                    "{0}__{1}".format(vt_src,
+                                      layer.get("style", {})
+                                      .get("vt-source-layer", "").strip() or "vt"),
+                    used_layer_ids)
+                vt_layer = dict(layer)
+                vt_layer["source"] = vt_src
+                vt_defs, vt_ids = self._build_vector_tile_layers(
+                    vt_layer, center_lat=cy, id_prefix=vt_prefix)
 
                 for ld in vt_defs:
-                    all_layers.append(ld)
+                    map_ops.append(("layer", ld))
 
                 vt_legend = self._build_legend(layer.get("style", {}))
                 layer_id_groups.append((vt_ids, layer["name"], "vector-tile", vt_legend, layer.get("initial_visible", True)))
@@ -2274,10 +2942,10 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                 # 単木SVGアイコンが有効な Point レイヤを収集（後で treesvg 連携JSをemit）
                 vt_style = layer.get("style", {})
                 if vt_style.get("vt-geom-type") == "Point" and vt_style.get("vt-tree-svg-enabled"):
-                    _src = layer.get("source") or layer["id"]
+                    _src = vt_src
                     treesvg_layers.append({
-                        "circle_id": _src + "_circle",
-                        "symbol_id": _src + "_tree",
+                        "circle_id": vt_prefix + "_circle",
+                        "symbol_id": vt_prefix + "_tree",
                         "source": _src,
                         "source_layer": vt_style.get("vt-source-layer", "").strip(),
                     })
@@ -2331,20 +2999,31 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                     # 属性値ごとのライン幅・不透明度（空欄ルールは上段の既定値を継承）
                     line_w = self._build_value_expr(color_rules, rule_field, style.get("line-width", 2.0), "width")
                     line_op = self._build_value_expr(color_rules, rule_field, style.get("line-opacity", 1.0), "opacity")
-                    fgb_style_layers.append({
-                        "id": lid,
-                        "type": "line",
-                        "source": lid,
-                        "minzoom": float(style.get("minzoom", 0)),
-                        "maxzoom": float(style.get("maxzoom", 24)),
-                        "paint": {
+                    # 縁取り（casing）は本線より前＝下に敷く
+                    casing = self._build_casing_layer(
+                        lid + "_casing", lid, style, color_rules, rule_field,
+                        "line-casing-color", "line-casing-width",
+                        float(style.get("minzoom", 0)),
+                        float(style.get("maxzoom", 24)))
+                    if casing is not None:
+                        fgb_style_layers.append(casing)
+                        ids.append(casing["id"])
+                    # 破線: 区分ごとに違うパターンなら filter 付きで複数レイヤに分かれる
+                    line_layers = self._build_line_layers(
+                        lid, lid,
+                        {
                             "line-color": line_color,
                             "line-width": line_w,
                             "line-opacity": line_op,
-                        }
-                    })
-                    ids.append(lid)
-                    popup_layer_ids.append(lid)
+                        },
+                        float(style.get("minzoom", 0)),
+                        float(style.get("maxzoom", 24)),
+                        style.get("line-dasharray", []),
+                        color_rules, rule_field)
+                    fgb_style_layers.extend(line_layers)
+                    for _ld in line_layers:
+                        ids.append(_ld["id"])
+                        popup_layer_ids.append(_ld["id"])
 
                 else:
                     fill_id = lid
@@ -2364,19 +3043,25 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                             "fill-opacity": fill_op,
                         }
                     })
-                    fgb_style_layers.append({
-                        "id": outline_id,
-                        "type": "line",
-                        "source": lid,
-                        "minzoom": float(style.get("minzoom", 0)),
-                        "maxzoom": float(style.get("maxzoom", 24)),
-                        "paint": {
-                            "line-color": style.get("fill-outline-color", "#ffffff"),
+                    # 外周線の色も区分ごとに変えられる（ルールの outline_color）
+                    outline_color = self._build_color_expr(
+                        color_rules, rule_field,
+                        style.get("fill-outline-color", "#ffffff"),
+                        key="outline_color")
+                    outline_layers = self._build_line_layers(
+                        outline_id, lid,
+                        {
+                            "line-color": outline_color,
                             "line-width": outline_w,
                             "line-opacity": style.get("line-opacity", 1.0),
-                        }
-                    })
-                    ids.extend([fill_id, outline_id])
+                        },
+                        float(style.get("minzoom", 0)),
+                        float(style.get("maxzoom", 24)),
+                        style.get("line-dasharray", []),
+                        color_rules, rule_field)
+                    fgb_style_layers.extend(outline_layers)
+                    ids.append(fill_id)
+                    ids.extend(_ld["id"] for _ld in outline_layers)
                     popup_layer_ids.append(fill_id)
 
                 label_field = style.get("label-field", "")
@@ -2402,26 +3087,48 @@ class ForestGeoStudioDialog(QDialog, FORM_CLASS):
                     })
                     ids.append(label_id)
 
-                # ループ後にまとめてemitするためfgb_callsに積む（順序制御のため）
-                fgb_calls.append((lid, url, fgb_style_layers, layer.get("initial_visible", True)))
+                # 他の種別と同じ列に積む（パネル順＝描画順を保つため）
+                map_ops.append(("fgb", lid, url, fgb_style_layers,
+                                layer.get("initial_visible", True)))
 
                 fgb_legend = self._build_legend(style, geom)
                 layer_id_groups.append((ids, layer["name"], geom.lower(), fgb_legend, layer.get("initial_visible", True)))
 
-        # raster / vector-tile を先に addLayer（描画順の下層）
-        for ld in all_layers:
-            load_js += f"  map.addLayer({json.dumps(ld, ensure_ascii=False)});\n"
-
-        # fgb レイヤは raster/VT の addLayer が完了した後に loadFgbLayer を呼ぶ
-        # → MapLibre は後から addLayer したものが上に描画されるため、
-        #   fgb（ベクタ）が必ずラスタより上になる
-        for (fgb_lid, fgb_url, fgb_style, fgb_vis) in fgb_calls:
-            load_js += f"  await loadFgbLayer(map, {json.dumps(fgb_lid)}, {json.dumps(fgb_url, ensure_ascii=False)}, {json.dumps(fgb_style, ensure_ascii=False)}, {'true' if fgb_vis else 'false'});\n"
+        # レイヤパネルと同じ順序で地図へ追加する。
+        # export_layers はパネルの下から上（＝地図の下から上）の順に積んで
+        # あるので、この順に emit すれば「パネルの一番下＝地図の一番上」に揃う。
+        # 1件でも例外を投げると load ハンドラがそこで止まり、地図もパネルも
+        # 出なくなるため、1件ずつ try/catch で包む。
+        for op in map_ops:
+            if op[0] == "layer":
+                ld = op[1]
+                load_js += (
+                    "  try { map.addLayer(%s); }\n"
+                    "  catch(e){ console.error('[layer] 追加に失敗:', %s, e); }\n"
+                    % (json.dumps(ld, ensure_ascii=False),
+                       json.dumps(ld.get("id", ""), ensure_ascii=False)))
+            else:
+                _, fgb_lid, fgb_url, fgb_style, fgb_vis = op
+                load_js += (
+                    "  try { await loadFgbLayer(map, %s, %s, %s, %s); }\n"
+                    "  catch(e){ console.error('[fgb] 読み込みに失敗:', %s, e); }\n"
+                    % (json.dumps(fgb_lid),
+                       json.dumps(fgb_url, ensure_ascii=False),
+                       json.dumps(fgb_style, ensure_ascii=False),
+                       'true' if fgb_vis else 'false',
+                       json.dumps(fgb_lid)))
 
         # Keep the layer panel in the same top-to-bottom order as QGIS.
         # (vector-tile entries are already added inline above; skip them here)
         for ids, name, kind, legend, init_vis in layer_id_groups:
-            panel_qgis_js += f"  addToggle({json.dumps(ids)}, {json.dumps(name, ensure_ascii=False)}, {json.dumps(kind)}, {json.dumps(legend, ensure_ascii=False)}, {'true' if init_vis else 'false'});\n"
+            # 1行の失敗でパネル全体が空にならないように包む
+            panel_qgis_js += (
+                "  try { addToggle(%s, %s, %s, %s, %s); }\n"
+                "  catch(e){ console.error('[panel] 追加に失敗:', %s, e); }\n"
+                % (json.dumps(ids), json.dumps(name, ensure_ascii=False),
+                   json.dumps(kind), json.dumps(legend, ensure_ascii=False),
+                   'true' if init_vis else 'false',
+                   json.dumps(name, ensure_ascii=False)))
 
         popup_js = ""
         if opts["popup"] and popup_layer_ids:
@@ -3118,10 +3825,13 @@ async function exportDrawData() {
 }
 """ if opts["draw"] and opts["draw_export"] else ""
 
-        # --- GeoJSONインポート ---
-        geojson_import_html = """
+        # --- GeoJSONインポート（GeoTIFF/PMTilesにも対応。変換処理は公開・無保護の pmtiles.js に委譲）---
+        # pmtiles.js は WEB地図本体のテーマカラー（theme["main"]等）を window.FG_THEME 経由で受け取る。
+        geojson_import_html = f"""
 <button class="ctrl-btn" onclick="document.getElementById('_geojson-input').click()">📂 外部データを読込</button>
-<input type="file" id="_geojson-input" accept=".geojson,.json,.kml,.gpx" style="display:none" onchange="importExternal(event)"/>
+<input type="file" id="_geojson-input" accept=".geojson,.json,.kml,.gpx,.tif,.tiff,.pmtiles,.pmtile" multiple style="display:none" onchange="importExternal(event)"/>
+<script>window.FG_THEME = {json.dumps({"main": theme["main"], "dark": theme["dark"], "text": theme["text"]})};</script>
+<script src="https://forestgeo.info/ForestGeoStudio/pmtiles.js" defer></script>
 """ if opts["geojson_import"] else ""
 
         geojson_import_js = """
@@ -3212,8 +3922,19 @@ function _registerImportInteractivity(baseId, name, feats){
 }
 
 function importExternal(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
+  // GeoTIFF / PMTiles（複数選択時はまとめて1つのPMTilesへマージ）は
+  // pmtiles.js（公開・無保護モジュール）に処理を委譲する。
+  // スクリプト未読込（サーバー未配置など）の場合は素通りし、従来どおりの
+  // GeoJSON/KML/GPXパースでエラーになる（≒未対応形式として扱われる）。
+  const isGeoRaster = (f) => { const n = (f.name || "").toLowerCase(); return n.endsWith(".tif") || n.endsWith(".tiff") || n.endsWith(".pmtiles") || n.endsWith(".pmtile"); };
+  const geoFiles = files.filter(isGeoRaster);
+  if (geoFiles.length && typeof window.__pmtilesHandleImport === "function") {
+    if (window.__pmtilesHandleImport(geoFiles, map)) { event.target.value = ""; return; }
+  }
+  // GeoJSON/KML/GPXは従来どおり単一ファイルのみ対応（複数選択時は先頭のみ使用）。
+  const file = files[0];
   const _nm = (file.name || "").toLowerCase();
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -3422,6 +4143,31 @@ function addExternalTile(){
                 "  }\n"
             ) % _k_vis
 
+        # ---- ボーリング柱状図（国土交通データプラットフォーム・国土地盤情報）オプション ----
+        # 表示中の地図範囲内のボーリング地点をポイントで重畳し、クリックで柱状図
+        # （深度・土質・N値）を取得・表示する。地図移動のたびにDPF APIへ再検索する
+        # 点はweather.jsの風グリッド（moveend再取得）と同様の設計。
+        # DPF APIはCORS未対応のため、自サーバーのdpf-proxy.php経由で呼び出す
+        # （APIキーはプロキシ側にのみ保持し、生成HTMLには含めない）。
+        if opts.get("boringlog", False) and opt1_ok:
+            _need_opt1("boringlog-extension.js")
+            boringlog_cfg = {
+                "theme": {"main": theme["main"], "dark": theme["dark"], "text": theme["text"]},
+                "api": {"baseUrl": MLIT_DPF_PROXY_URL},
+            }
+            boringlog_init_js = (
+                "  // ボーリング柱状図レイヤ（国土交通データプラットフォーム）を追加\n"
+                "  if (typeof BoringLogExtension !== 'undefined') {\n"
+                "    BoringLogExtension.addToMap(map, %s);\n"
+                "  }\n"
+            ) % json.dumps(boringlog_cfg, ensure_ascii=False)
+            _bl_vis = "true" if opts.get("boringlog_vis", True) else "false"
+            boringlog_panel_js = (
+                "  if (typeof BoringLogExtension !== 'undefined') {\n"
+                "    BoringLogExtension.addPanelToggle(map, 'ボーリング柱状図（国土地盤情報）', %s);\n"
+                "  }\n"
+            ) % _bl_vis
+
         # ---- CS立体図（標高タイル）オプション ----
         csmap_script_tag = ""
         if opts.get("csmap", False) and opt1_ok:
@@ -3544,6 +4290,34 @@ function addExternalTile(){
                 "      [{\"label\":\"\",\"color\":\"#00CCCC\",\"shape\":\"fill\"}], %s);\n"
                 "  }\n"
             ) % _vis
+
+        # ---- 0次谷（標高タイル）オプション ----
+        # 国土地理院 DEM5A(5m) をブラウザ内で解析し、
+        #   接峰面差分 → 谷ラスタ → 窪地埋め → D8流向 → 集水面積
+        #   → 流路からの距離バッファ（流送域）→ 0次谷
+        # を Web Worker で演算して重ねる。広域スクリーニング用途。
+        # 解析は z15 固定・z13タイル単位のブロック演算のため、
+        # CS立体図などの上に重ねる最前面レイヤとして追加する。
+        if opts.get("zob", False) and opt1_ok:
+            _need_opt1("zob-extension.js")
+            micro_init["zob"] = (
+                "  // 0次谷レイヤを追加（微地形群・最前面）\n"
+                "  if (typeof ZobExtension !== 'undefined') {\n"
+                "    ZobExtension.addToMap(map);\n"
+                "  }\n"
+            )
+            # レイヤ行は本体の addToggle で作り、その直下に抽出設定パネル
+            # （谷の抽出量・0次谷の集水下限・流送域の幅＋各項目のⓘ解説）を差し込む。
+            _vis = "true" if opts.get("zob_vis", True) else "false"
+            zob_panel_cfg = {
+                "theme": {"main": theme["main"], "dark": theme["dark"], "text": theme["text"]},
+                "ui": True,
+            }
+            micro_panel["zob"] = (
+                "  if (typeof ZobExtension !== 'undefined') {\n"
+                "    ZobExtension.addPanelToggle(map, '0次谷（谷頭凹地のスクリーニング）', %s, %s);\n"
+                "  }\n"
+            ) % (_vis, json.dumps(zob_panel_cfg, ensure_ascii=False))
 
         # ---- Sentinel-2 変化解析（Earth Search STAC + COG）オプション ----
         # オプション1の保護JSとして読み込むが、WEB側UIはオプション2と同じく
@@ -3975,8 +4749,7 @@ function toggle3DView() {
         if opts.get("dchm", False) and opt2_ok:
             dchm_cfg = {
                 "theme": {"main": theme["main"], "dark": theme["dark"], "text": theme["text"]},
-                # 林野庁 DCHM（能登2024, GSI標高PNG, z12-18, 0.5m）を既定に
-                "dchmUrl":  "https://forestgeo.info/opendata/17_ishikawa/noto/dchm_2024/{z}/{x}/{y}.png",
+                "dchmUrl":  "https://.../{z}/{x}/{y}.png",
                 "dchmEnc":  "gsi",
                 "dchmMaxZ": 18,
                 # DSM−DEM ルートの既定 DEM（DEM1A→DEM5A フォールバック）
@@ -4118,12 +4891,12 @@ function toggle3DView() {
           ) % json.dumps(route_cfg, ensure_ascii=False)
 
         # ===== レイヤ重なり順／パネル表示順の最終組み立て =====
-        micro_order = ["colorrelief", "twi", "topex", "cimap", "inyouzu", "mpirrim", "csmap"]
+        micro_order = ["colorrelief", "twi", "topex", "cimap", "inyouzu", "mpirrim", "csmap", "zob"]
         micro_init_js  = "".join(micro_init.get(k, "")  for k in micro_order)
         micro_panel_js = "".join(micro_panel.get(k, "") for k in micro_order)
         # この時点の load_js は QGIS レイヤ＋オプション2 操作系を含む。
         # 先頭へ 3D sky → 微地形群、末尾へ 気象 を連結し最終的な描画順を確定する。
-        load_js = terrain_init_js + micro_init_js + sentinel_init_js + airphoto_init_js + load_js + kikikuru_init_js + weather_init_js
+        load_js = terrain_init_js + micro_init_js + sentinel_init_js + airphoto_init_js + load_js + kikikuru_init_js + boringlog_init_js + weather_init_js
 
         # パネル: 上段＝描画下層。ベースマップ → 微地形 → QGIS → 気象 の順に addToggle。
         for _bm_id, _bm_name, _bm_vis in basemap_panel_entries:
@@ -4133,7 +4906,7 @@ function toggle3DView() {
                    json.dumps(_bm_name, ensure_ascii=False),
                    "true" if _bm_vis else "false")
             )
-        panel_js = panel_basemap_js + micro_panel_js + panel_qgis_js + kikikuru_panel_js + weather_panel_js
+        panel_js = panel_basemap_js + micro_panel_js + panel_qgis_js + kikikuru_panel_js + boringlog_panel_js + weather_panel_js
 
         # ===== 属性検索バー（ベクタレイヤの属性値で地物検索）=====
         feature_search_html = ""
@@ -4296,11 +5069,26 @@ html,body{{height:100%;font-family:var(--font);font-size:13px}}
 .layer-opacity input[type=range]{{flex:1;accent-color:#fff;cursor:pointer}}
 .layer-opacity .layer-opacity-val{{font-size:11px;min-width:34px;text-align:right;opacity:.9}}
 .layer-legend{{padding:2px 12px 6px 34px;border-bottom:1px solid rgba(255,255,255,.1)}}
+.layer-legend.collapsed{{display:none}}
 .legend-item{{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px;line-height:1.4;color:var(--text)}}
 .legend-swatch{{flex-shrink:0;width:16px;height:16px;border-radius:2px;border:1px solid rgba(0,0,0,.2)}}
 .legend-swatch.line{{height:4px;border-radius:2px;border:none;margin-top:6px}}
 .legend-swatch.circle{{border-radius:50%}}
+/* 線の色見本は中の SVG で描く。旧バージョンの printextension.js は
+   span の inline style（style.background）から色を読むため、色は
+   inline style にも入れたうえで、見た目だけ !important で消す。
+   （style.background は「インライン宣言の文字列」を返すので、
+     !important で描画を止めても旧JSは今までどおり色を取得できる） */
+.legend-swatch.swline{{width:28px;height:12px;border:none;border-radius:0;
+  background:none !important;margin:0;display:inline-flex;align-items:center}}
+.legend-swatch-line{{display:block;width:100%;height:100%}}
 .legend-label{{opacity:.9}}
+/* 凡例の内訳を開閉するボタン。レイヤの表示/非表示とは独立に動く */
+.legend-toggle{{flex-shrink:0;width:16px;height:16px;margin-right:2px;padding:0;
+  border:none;background:none;color:var(--text);opacity:.65;cursor:pointer;
+  font-size:10px;line-height:16px;text-align:center}}
+.legend-toggle:hover{{opacity:1}}
+.legend-toggle .count{{display:none}}
 #feature-search-bar{{background:var(--green-dark);color:var(--text);display:flex;align-items:center;gap:6px;padding:5px 8px;flex-shrink:0;flex-wrap:wrap;z-index:10;font-size:12px;border-top:1px solid rgba(255,255,255,.18)}}
 #feature-search-bar .fs-label{{font-weight:700;white-space:nowrap}}
 #feature-search-bar select,#feature-search-bar input{{border:1px solid #ccd;border-radius:var(--r);padding:3px 6px;font-size:12px;font-family:var(--font);background:#fff;color:#222}}
@@ -4480,7 +5268,7 @@ function addToggle(ids, name, kind, legend, initialVisible){{
     layerIds.forEach(id => {{
       if(map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
     }});
-    if(legendDiv) legendDiv.style.display = checkbox.checked ? "" : "none";
+    if(label.__syncLegend) label.__syncLegend();
     // 単木SVGアイコン: 3D表示中の ON/OFF を symbol レイヤにも反映させる
     if(window.__treeSvgReapply) window.__treeSvgReapply();
   }};
@@ -4488,21 +5276,83 @@ function addToggle(ids, name, kind, legend, initialVisible){{
   span.textContent = name;
   label.appendChild(checkbox);
   label.appendChild(span);
-  list.appendChild(label);
 
   // --- 凡例行（色分けルールがある or 単色でも shape を表示） ---
   let legendDiv = null;
+  let legendExpanded = true;
+
+  // 破線の縮尺。dasharray は「線幅の倍数」なので、そのまま px に直すと
+  // 長い破線が色見本の幅に1周期しか入らず実線に見えてしまう。
+  // 凡例全体で共通の係数を使い、いちばん長いパターンでも2周期は入るようにする。
+  // 共通係数なので「短い破線／長い破線」の違いはそのまま残る。
+  const SWATCH_W = 28, SWATCH_H = 12, SWATCH_SW = 2.5;
+  function dashScaleFor(items){{
+    let maxTotal = 0;
+    (items || []).forEach(it => {{
+      if(Array.isArray(it.dash) && it.dash.length >= 2){{
+        const total = it.dash.reduce((a, b) => a + b, 0);
+        if(total > maxTotal) maxTotal = total;
+      }}
+    }});
+    if(!maxTotal) return SWATCH_SW;
+    return Math.min(SWATCH_SW, SWATCH_W / (2 * maxTotal));
+  }}
+  const dashScale = dashScaleFor(legend);
+
+  // 色見本を作る。線は SVG で描いて実線・破線・点線を見分けられるようにする。
+  // 色見本は必ず <span class="legend-swatch ..."> を外側に置く。
+  // 印刷オプション（printextension.js）など外部JSがこのDOMを走査して
+  // 凡例を組み立てるため、要素の型を変えると古いJSが動かなくなる。
+  //   * SVG要素の className は文字列ではない（SVGAnimatedString）ので、
+  //     `sw.className.indexOf(...)` を使う既存JSが例外で止まる
+  //   * `span.legend-swatch` というセレクタにも当たらなくなる
+  // そこで線種を描くSVGは span の**中**に入れ、色・形・線種は
+  // data-* 属性でも渡す（新しいJSはこちらを読めば確実）。
+  function makeSwatch(item, small){{
+    const shape = item.shape || "fill";
+    const el = document.createElement("span");
+    el.className = "legend-swatch " + shape;
+    el.setAttribute("data-shape", shape);
+    el.setAttribute("data-color", item.color || "");
+    if(shape === "line"){{
+      const w = small ? 22 : SWATCH_W, h = small ? 10 : SWATCH_H;
+      el.classList.add("swline");
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "legend-swatch-line");
+      svg.setAttribute("width", w);
+      svg.setAttribute("height", h);
+      svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+      const ln = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      ln.setAttribute("x1", 0); ln.setAttribute("y1", h / 2);
+      ln.setAttribute("x2", w); ln.setAttribute("y2", h / 2);
+      ln.setAttribute("stroke", item.color);
+      ln.setAttribute("stroke-width", small ? 2 : SWATCH_SW);
+      ln.setAttribute("stroke-linecap", "butt");
+      if(Array.isArray(item.dash) && item.dash.length >= 2){{
+        const px = item.dash.map(v => +(v * dashScale).toFixed(2));
+        ln.setAttribute("stroke-dasharray", px.join(" "));
+        // 線幅の倍数（元の値）を渡す。印刷側で紙面寸法へ組み直せるように。
+        el.setAttribute("data-dash", item.dash.join(","));
+      }}
+      svg.appendChild(ln);
+      el.appendChild(svg);
+      // 旧 printextension.js は span の inline style から色を読むため、
+      // 互換用に色を入れておく（描画は CSS の background:none !important で抑止）。
+      el.style.background = item.color || "";
+      return el;
+    }}
+    el.style.background = item.color;
+    if(small){{ el.style.width = "12px"; el.style.height = "12px"; }}
+    return el;
+  }}
+
   if(legend && legend.length > 0) {{
     // 単色・ラベルなしの場合は小さいスウォッチのみ（行内に折りたたまない）
     const isSingle = legend.length === 1 && !legend[0].label;
     if(isSingle) {{
       // チェックボックス行の右側に小スウォッチを埋め込む
-      const sw = document.createElement("span");
-      sw.className = "legend-swatch " + (legend[0].shape || "fill");
-      sw.style.background = legend[0].color;
+      const sw = makeSwatch(legend[0], true);
       sw.style.marginLeft = "auto";
-      sw.style.width = "12px";
-      sw.style.height = legend[0].shape === "line" ? "3px" : "12px";
       label.appendChild(sw);
       inlineSwatchAdded = true;
     }} else {{
@@ -4512,18 +5362,45 @@ function addToggle(ids, name, kind, legend, initialVisible){{
       legend.forEach(item => {{
         const row = document.createElement("div");
         row.className = "legend-item";
-        const sw = document.createElement("span");
-        sw.className = "legend-swatch " + (item.shape || "fill");
-        sw.style.background = item.color;
         const lbl = document.createElement("span");
         lbl.className = "legend-label";
         lbl.textContent = item.label;
-        row.appendChild(sw);
+        row.appendChild(makeSwatch(item, false));
         row.appendChild(lbl);
         legendDiv.appendChild(row);
       }});
-      list.appendChild(legendDiv);
     }}
+  }}
+
+  // --- 凡例の内訳を開閉するボタン ---
+  // レイヤの表示/非表示（チェックボックス）とは独立。区分が多いスタイルで
+  // パネルが埋まるのを、レイヤを消さずに畳んで防ぐ。
+  if(legendDiv){{
+    const LEGEND_AUTO_COLLAPSE = 8;   // これを超える区分数なら初めから畳む
+    legendExpanded = legend.length <= LEGEND_AUTO_COLLAPSE;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "legend-toggle";
+    function syncLegend(){{
+      const show = legendExpanded && checkbox.checked;
+      legendDiv.classList.toggle("collapsed", !show);
+      toggle.textContent = legendExpanded ? "▾" : "▸";
+      toggle.title = legendExpanded ? "凡例の内訳を隠す" : "凡例の内訳を表示";
+    }}
+    toggle.onclick = (ev) => {{
+      // ラベル内のボタンなのでチェックボックスのトグルを止める
+      ev.preventDefault();
+      ev.stopPropagation();
+      legendExpanded = !legendExpanded;
+      syncLegend();
+    }};
+    label.insertBefore(toggle, label.firstChild);
+    label.__syncLegend = syncLegend;
+    list.appendChild(label);
+    list.appendChild(legendDiv);
+    syncLegend();
+  }} else {{
+    list.appendChild(label);
   }}
 
   // --- 透過率（不透明度）ボタン＋スライダー ---
@@ -4584,13 +5461,22 @@ function toggleToolGroup(){{
 // ---------------------------------------------------------------
 async function loadFgbLayer(map, layerId, url, styleLayers, initialVisible) {{
   // 空の GeoJSON ソースを登録
-  map.addSource(layerId, {{
-    type: "geojson",
-    data: {{ type: "FeatureCollection", features: [] }}
-  }});
+  // 1件でも失敗すると呼び出し元（load ハンドラ）が止まり、
+  // 以降のレイヤもレイヤパネルも作られなくなるため、必ず握る。
+  try {{
+    map.addSource(layerId, {{
+      type: "geojson",
+      data: {{ type: "FeatureCollection", features: [] }}
+    }});
+  }} catch(e) {{
+    console.error("[fgb] ソースの追加に失敗:", layerId, e);
+  }}
 
   // スタイルレイヤを追加
-  styleLayers.forEach(ld => map.addLayer(ld));
+  styleLayers.forEach(ld => {{
+    try {{ map.addLayer(ld); }}
+    catch(e) {{ console.error("[fgb] レイヤの追加に失敗:", ld && ld.id, e); }}
+  }});
 
   // 初期表示設定
   if (initialVisible === false) {{
