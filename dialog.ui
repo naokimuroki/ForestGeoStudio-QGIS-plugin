@@ -428,7 +428,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QLabel" name="lblBasemap2">
           <property name="text">
-           <string>種類2（任意・上に重ねる）</string>
+           <string>種類2（任意・種類１の上に重なる）</string>
           </property>
          </widget>
         </item>
@@ -537,7 +537,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkInyouzu">
           <property name="text">
-           <string>国土地理院・標高タイルから陰陽図（エアロトヨタ社考案）を描写/OPT1</string>
+           <string>国土地理院・標高タイルから陰陽図（エアロトヨタ社）を描写/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -574,7 +574,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkMpiRrim">
           <property name="text">
-           <string>国土地理院・標高タイルからMPI赤色立体地図（アジア航測ら考案）を描写/OPT1</string>
+           <string>国土地理院・標高タイルからMPI赤色立体地図（アジア航測）を描写/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -611,7 +611,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkCimap">
           <property name="text">
-           <string>国土地理院・標高タイルからCIマップ（中央開発考案）を描写/OPT1</string>
+           <string>国土地理院・標高タイルからCIマップ（中央開発）を描写/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -746,6 +746,37 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
        </layout>
       </item>
       <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRowZob">
+        <item>
+         <widget class="QCheckBox" name="chkZob">
+          <property name="text">
+           <string>国土地理院・標高タイルから0次谷を抽出／OPT1</string>
+          </property>
+          <property name="toolTip">
+           <string>標高タイルをブラウザ内で解析し、接峰面との差分から谷を、D8流向・集水面積から流路を求め、流路から一定距離（流送域）を除いた凹地を「0次谷」として重ねます。ズーム14以上で表示されます。</string>
+          </property>
+          <property name="checked"><bool>false</bool></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkZobVis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerZob">
+          <property name="orientation"><enum>Qt::Horizontal</enum></property>
+          <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
        <layout class="QHBoxLayout" name="layoutBasemapRowSentinelChange">
         <item>
          <widget class="QCheckBox" name="chkSentinelChange">
@@ -768,7 +799,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkAirphotoChange">
           <property name="text">
-           <string>空中写真（マップタイル）の２時期比較を実行／OPT1</string>
+           <string>空中写真マップタイルの２時期比較を実行／OPT1</string>
           </property>
           <property name="checked"><bool>false</bool></property>
          </widget>
@@ -782,11 +813,51 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
        </layout>
       </item>
       <item>
+       <layout class="QHBoxLayout" name="layoutBasemapRowBoringLog">
+        <item>
+         <widget class="QCheckBox" name="chkBoringLog">
+          <property name="text">
+           <string>地質調査地点・ボーリング柱状図（国土交通データプラットフォーム）を表示/OPT1</string>
+          </property>
+          <property name="toolTip">
+           <string>表示中の地図範囲内のボーリング地点を取得してマーカー表示し、クリックで柱状図を確認できます。国土交通省の道路・河川・港湾事業等の地質調査成果が対象で、全国あまねく揃っているわけではありません。</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkBoringLogVis">
+          <property name="text">
+           <string>表示</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerBoringLog">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
        <layout class="QHBoxLayout" name="layoutBasemapRow7">
         <item>
          <widget class="QCheckBox" name="chkWeather">
           <property name="text">
-           <string>気象庁ナウキャスト（降水量）/Open-Meteo（風向・風速）をアニメーション表示/OPT1</string>
+           <string>気象庁（降水量・台風）/Open-Meteo（風向・風速）の気象情報を表示/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -823,7 +894,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         <item>
          <widget class="QCheckBox" name="chkKikikuru">
           <property name="text">
-           <string>気象庁キキクル（土砂・浸水・洪水の危険度分布）をリアルタイム表示/OPT1</string>
+           <string>気象庁キキクル（土砂・浸水・洪水の危険度分布）を表示/OPT1</string>
           </property>
           <property name="checked">
            <bool>false</bool>
@@ -1142,6 +1213,37 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
              </widget>
             </item>
             <item>
+             <widget class="QLabel" name="lblLineStyle">
+              <property name="text">
+               <string>線種:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="cmbLineStyle">
+              <property name="minimumWidth">
+               <number>96</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblLineDash">
+              <property name="text">
+               <string>パターン:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="txtLineDash">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
+              <property name="maximumWidth">
+               <number>110</number>
+              </property>
+             </widget>
+            </item>
+            <item>
              <spacer name="spacerLine">
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
@@ -1280,6 +1382,37 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
               <property name="maximum"><double>24.0</double></property>
               <property name="value"><double>24.0</double></property>
               <property name="maximumWidth"><number>70</number></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblOutlineStyle">
+              <property name="text">
+               <string>枠線種:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="cmbOutlineStyle">
+              <property name="minimumWidth">
+               <number>96</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblOutlineDash">
+              <property name="text">
+               <string>パターン:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="txtOutlineDash">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
+              <property name="maximumWidth">
+               <number>110</number>
+              </property>
              </widget>
             </item>
             <item>
@@ -1447,6 +1580,37 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
                 </widget>
                </item>
                <item>
+                <widget class="QLabel" name="lblVtOutlineStyle">
+                 <property name="text">
+                  <string>枠線種:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="cmbVtOutlineStyle">
+                 <property name="minimumWidth">
+                  <number>96</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="lblVtOutlineDash">
+                 <property name="text">
+                  <string>パターン:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="txtVtOutlineDash">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="maximumWidth">
+                  <number>110</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
                 <spacer name="spacerVtPoly">
                  <property name="orientation"><enum>Qt::Horizontal</enum></property>
                  <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
@@ -1481,6 +1645,37 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
                  <property name="singleStep"><double>0.1</double></property>
                  <property name="value"><double>1.0</double></property>
                  <property name="maximumWidth"><number>70</number></property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="lblVtLineStyle">
+                 <property name="text">
+                  <string>線種:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="cmbVtLineStyle">
+                 <property name="minimumWidth">
+                  <number>96</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="lblVtLineDash">
+                 <property name="text">
+                  <string>パターン:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="txtVtLineDash">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="maximumWidth">
+                  <number>110</number>
+                 </property>
                 </widget>
                </item>
                <item>
@@ -1728,6 +1923,8 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
               <column><property name="text"><string>配色</string></property></column>
               <column><property name="text"><string>不透明度（空欄=既定）</string></property></column>
               <column><property name="text"><string>枠幅／ライン幅（空欄=既定）</string></property></column>
+              <column><property name="text"><string>凡例表示名（空欄=自動）</string></property></column>
+              <column><property name="text"><string>線種（空欄=既定）</string></property></column>
              </widget>
             </item>
            </layout>
